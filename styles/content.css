@@ -78,6 +78,23 @@
 .sm-dot.negative { background: var(--err); }
 .sm-dot.neutral { background: var(--tx3); }
 
+/* ===== Model Selector ===== */
+#sm-model-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-bottom: 1px solid var(--bd2); background: var(--bg);
+}
+#sm-model-bar label {
+  color: var(--tx3); font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+#sm-model-select {
+  flex: 1; min-width: 0; padding: 5px 28px 5px 8px;
+  border: 1px solid var(--bd); border-radius: 7px;
+  background: var(--bg2); color: var(--tx); outline: none;
+  font: 11.5px var(--sm-font); cursor: pointer;
+}
+#sm-model-select:focus { border-color: var(--ac); }
+
 /* ===== Tone Bar ===== */
 #sm-tone-bar {
   display: flex; gap: 4px; padding: 8px 12px;
@@ -111,6 +128,12 @@
   background: var(--bg2); color: var(--tx); border: 1px solid var(--bd2);
   position: relative;
 }
+.sm-assistant-reply { border-left: 3px solid var(--ac); }
+.sm-assistant-reply::before {
+  content: "SELLERMIND · SANA YANIT"; display: block; margin-bottom: 5px;
+  color: var(--ac); font-size: 9.5px; font-weight: 700; letter-spacing: .45px;
+}
+.sm-assistant-copy { display: block; margin-top: 8px; }
 
 /* ===== Instruction-first Workspace ===== */
 .sm-instruction-guide {

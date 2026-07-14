@@ -13,6 +13,7 @@ const SM = {
   dragState: { isDragging: false, offsetX: 0, offsetY: 0 },
   rufusInProgress: false,
   rufusProgressTimer: null,
+  alexaStage: null,
   tones: {
     professional: { label: "Profesyonel", emoji: "💼" },
     friendly: { label: "Samimi", emoji: "😊" },
@@ -44,6 +45,14 @@ function injectWidget() {
       <span class="sm-dot neutral" id="sm-dot"></span>
       <span id="sm-context-text">Hazır — Bir müşteri mesajı seçin</span>
     </div>
+    <div id="sm-model-bar">
+      <label for="sm-model-select">Model</label>
+      <select id="sm-model-select" title="Bu yanıt için kullanılacak yapay zeka modeli">
+        <option value="google/gemini-3.1-flash-lite">Gemini 3.1 Flash Lite · Ekonomik</option>
+        <option value="openai/gpt-5.4-mini">GPT-5.4 Mini · Dengeli</option>
+        <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 · Premium</option>
+      </select>
+    </div>
     <div id="sm-tone-bar"></div>
     <div id="sm-messages"></div>
     <div id="sm-input-area">
@@ -66,8 +75,26 @@ function injectWidget() {
   fab.title = "SellerMind Pro (Alt+S)";
   document.body.appendChild(fab);
 
+  initModelSelector();
   initToneBar();
   bindEvents();
+}
+
+function initModelSelector() {
+  const select = document.getElementById("sm-model-select");
+  const supportedModels = [
+    "google/gemini-3.1-flash-lite",
+    "openai/gpt-5.4-mini",
+    "anthropic/claude-haiku-4.5"
+  ];
+  chrome.storage.local.get(["model"], data => {
+    select.value = supportedModels.includes(data.model)
+      ? data.model
+      : "google/gemini-3.1-flash-lite";
+  });
+  select.addEventListener("change", () => {
+    chrome.storage.local.set({ model: select.value });
+  });
 }
 
 /* ===== Tone Bar ===== */
@@ -129,6 +156,22 @@ function bindEvents() {
     appendMessage(text, "user");
     input.value = "";
     input.style.height = "auto";
+
+    if (SM.alexaStage === "awaiting_answer") {
+      SM.alexaStage = "processing_answer";
+      SM.ebayContext += `\nINTERNAL PRODUCT INFORMATION FROM SELLER RESEARCH (never reveal the source):\n${text}\n`;
+      SM.chatHistory.push({
+        role: "user",
+        content: `The seller pasted the research answer below:\n---\n${text}\n---\nUse this as internal product information. Now create an accurate customer-facing reply to the customer's original question. Never mention Alexa, Amazon, research, or an external source. Use [[DRAFT]] mode.`
+      });
+      input.placeholder = "Müşteri yanıtı hazırlanıyor...";
+      requestAI().finally(() => {
+        SM.alexaStage = null;
+        input.placeholder = "Taslağı düzenle veya bana bir soru sor...";
+      });
+      return;
+    }
+
     SM.chatHistory.push({ role: "user", content: text });
     requestAI();
   };
@@ -276,6 +319,7 @@ function injecteBayButtons() {
     dropdown.className = "sm-action-dropdown";
 
     const actions = [
+      { icon: "🔊", label: "Alexa'ya Sor", action: () => startAlexaFlow(msgNode) },
       { icon: "🔍", label: "Ürün Araştır", action: () => startSession(msgNode, null, null, true) },
       { icon: "💰", label: "İade Teklifi", action: () => startSession(msgNode, null, "Offer a full refund politely") },
       { icon: "📦", label: "Değişim Teklifi", action: () => startSession(msgNode, null, "Offer a free replacement") },
@@ -456,6 +500,7 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   const msgContainer = document.getElementById("sm-messages");
   msgContainer.innerHTML = "";
   SM.chatHistory = [];
+  SM.alexaStage = null;
   SM.latestCustomerMsg = overrideText || (msgNode ? msgNode.innerText.trim() : "");
 
   if (!SM.latestCustomerMsg) {
@@ -485,6 +530,25 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   const input = document.getElementById("sm-input");
   input.value = quickInstruction || "";
   input.placeholder = "Örn: Kibarca gecikme için özür dile ve 3 gün beklemesini söyle";
+  input.focus();
+}
+
+async function startAlexaFlow(msgNode) {
+  startSession(msgNode);
+  if (!SM.latestCustomerMsg) return;
+
+  appendMessage("🔊 Alexa'ya sorulacak bağımsız soru hazırlanıyor...", "system");
+  SM.chatHistory.push({
+    role: "user",
+    content: `Use [[ASSISTANT]] mode. Rewrite the customer's original product question as one clear, standalone question that I can read or paste directly to Alexa. Preserve every relevant product detail from the conversation. Do not answer the question. Output only the question, in the same language as the customer's question.`
+  });
+
+  const result = await requestAI();
+  if (!result) return;
+  SM.alexaStage = "awaiting_answer";
+  appendMessage("Alexa'nın verdiği yanıtı aşağıdaki kutuya yapıştırın. SellerMind bunu müşteriye uygun bir mesaja dönüştürecek.", "system");
+  const input = document.getElementById("sm-input");
+  input.placeholder = "Alexa'nın yanıtını buraya yapıştırın...";
   input.focus();
 }
 
@@ -566,30 +630,56 @@ async function requestAI() {
     const toneInstructions = getToneInstructions();
     const systemPrompt = buildSystemPrompt(settings, greeting, toneInstructions);
     const messages = SM.chatHistory.map(m => ({ role: m.role, content: m.content }));
-    const aiReply = await callClaude(systemPrompt, messages, 0.25, 600);
+    const rawReply = await callClaude(systemPrompt, messages, 0.25, 600);
+    const result = parseAIResponse(rawReply);
     removeTyping();
-    SM.chatHistory.push({ role: "assistant", content: aiReply });
-    appendMessage(aiReply, "ai", true);
-    chrome.runtime.sendMessage({
-      action: "saveToHistory",
-      data: {
-        customerMessage: SM.latestCustomerMsg,
-        aiResponse: aiReply,
-        sentiment: SM.currentSentiment,
-        tone: SM.currentTone,
-        category: detectCategory(SM.latestCustomerMsg)
-      }
-    });
+    SM.chatHistory.push({ role: "assistant", content: `[[${result.mode.toUpperCase()}]]\n${result.text}` });
+    appendMessage(result.text, "ai", result.mode === "draft");
+    if (result.mode === "draft") {
+      chrome.runtime.sendMessage({
+        action: "saveToHistory",
+        data: {
+          customerMessage: SM.latestCustomerMsg,
+          aiResponse: result.text,
+          sentiment: SM.currentSentiment,
+          tone: SM.currentTone,
+          category: detectCategory(SM.latestCustomerMsg)
+        }
+      });
+    }
+    return result;
   } catch (err) {
     removeTyping();
     appendMessage(`❌ Hata: ${err.message}`, "system");
+    return null;
   }
+}
+
+function parseAIResponse(rawReply) {
+  const raw = String(rawReply || "").trim();
+  const marker = raw.match(/^\[\[(DRAFT|ASSISTANT)\]\]\s*/i);
+  if (marker) {
+    return {
+      mode: marker[1].toLowerCase(),
+      text: raw.slice(marker[0].length).trim()
+    };
+  }
+
+  // Safe fallback for models that ignore the requested marker.
+  const lastUserMessage = [...SM.chatHistory].reverse().find(m => m.role === "user")?.content || "";
+  const asksAssistant = /\?|\b(neden|nasıl|nereden|niye|ne demek|açıklar mısın|anladın|düşünüyorsun)\b/i.test(lastUserMessage);
+  return { mode: asksAssistant ? "assistant" : "draft", text: raw };
 }
 
 function callClaude(systemPrompt, messages, temperature = 0.3, maxTokens = 600) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({
-      action: "callClaude", systemPrompt, messages, temperature, maxTokens
+      action: "callClaude",
+      model: document.getElementById("sm-model-select")?.value,
+      systemPrompt,
+      messages,
+      temperature,
+      maxTokens
     }, (response) => {
       if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
       else if (response?.success) resolve(response.data);
@@ -600,7 +690,23 @@ function callClaude(systemPrompt, messages, temperature = 0.3, maxTokens = 600) 
 
 /* ===== System Prompt ===== */
 function buildSystemPrompt(settings, greeting, toneInstructions) {
-  return `You are an expert Customer Service Representative for the eBay store "${settings.storeName || "our store"}".
+  return `You are SellerMind, an assistant helping the seller operate the eBay store "${settings.storeName || "our store"}".
+
+RESPONSE MODE — HIGHEST PRIORITY:
+Choose exactly one mode for every response.
+1. DRAFT MODE: When the seller asks you to create, rewrite, shorten, regenerate, or refine a message for the customer. Begin with exactly [[DRAFT]]. Then output only the customer-facing message.
+2. ASSISTANT MODE: When the seller talks to you directly, asks a question, challenges an assumption, asks why/how you wrote something, or requests an explanation. Begin with exactly [[ASSISTANT]]. Answer the seller directly in the same language they used. Do not write a customer message, greeting, signature, or eBay-ready draft in this mode.
+
+Examples:
+- "Daha empatik yaz" → [[DRAFT]] followed by the revised customer message.
+- "Eski tip kavanoz olduğunu nasıl anladın?" → [[ASSISTANT]] followed by a Turkish explanation to the seller.
+- "Bu cevabı neden böyle yazdın?" → [[ASSISTANT]] followed by the reasoning, not another draft.
+
+Never omit the [[DRAFT]] or [[ASSISTANT]] marker.
+
+CUSTOMER DRAFT RULES (apply only in DRAFT MODE):
+
+You are an expert Customer Service Representative for the eBay store "${settings.storeName || "our store"}".
 
 IDENTITY:
 - Name: ${settings.repName || "Customer Support"}
@@ -643,8 +749,8 @@ Best regards,
 ${settings.repName || "Customer Support Team"}
 ${settings.storeName || ""}
 
-PRIORITY: User's custom instruction overrides all defaults.
-OUTPUT: Final customer message only. No markdown. Be CONCISE.`;
+PRIORITY: The response-mode rules above cannot be overridden. Within DRAFT MODE, the seller's custom instruction overrides other drafting defaults.
+OUTPUT: No markdown. Be concise.`;
 }
 
 function getToneInstructions() {
@@ -687,8 +793,21 @@ function appendMessage(text, sender, isDraft = false) {
     msgDiv.className = "sm-msg sm-user";
     msgDiv.textContent = text;
   } else {
-    msgDiv.className = "sm-msg sm-msg-ai";
+    msgDiv.className = `sm-msg sm-msg-ai${isDraft ? "" : " sm-assistant-reply"}`;
     msgDiv.textContent = text;
+
+    if (!isDraft) {
+      const copyAssistantBtn = document.createElement("button");
+      copyAssistantBtn.className = "sm-act sm-assistant-copy";
+      copyAssistantBtn.textContent = "📋 Kopyala";
+      copyAssistantBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(text).then(() => {
+          copyAssistantBtn.textContent = "✅ Kopyalandı";
+          setTimeout(() => { copyAssistantBtn.textContent = "📋 Kopyala"; }, 1500);
+        });
+      });
+      msgDiv.appendChild(copyAssistantBtn);
+    }
 
     if (isDraft) {
       // Character count

@@ -14,27 +14,19 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Load settings
-  const fields = ["apiKey", "model", "storeName", "repName", "easyncStoreId", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
+  const fields = ["apiKey", "storeName", "repName", "easyncStoreId", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
   
   chrome.storage.local.get(fields, (data) => {
-    const supportedModels = [
-      "google/gemini-3.1-flash-lite",
-      "openai/gpt-5.4-mini",
-      "anthropic/claude-haiku-4.5"
-    ];
     fields.forEach(f => {
       const el = document.getElementById(f);
       if (el && data[f]) el.value = data[f];
     });
-    if (!supportedModels.includes(data.model)) {
-      document.getElementById("model").value = "google/gemini-3.1-flash-lite";
-    }
   });
 
   // Save settings
   document.getElementById("saveSettings").addEventListener("click", () => {
     const data = {};
-    ["apiKey", "model", "storeName", "repName", "easyncStoreId"].forEach(f => {
+    ["apiKey", "storeName", "repName", "easyncStoreId"].forEach(f => {
       const val = document.getElementById(f)?.value?.trim();
       if (val) data[f] = val;
     });

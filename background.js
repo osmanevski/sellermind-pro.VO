@@ -265,7 +265,8 @@ async function handleClaudeRequest(req) {
     "openai/gpt-5.4-mini",
     "anthropic/claude-haiku-4.5"
   ]);
-  const model = supportedModels.has(s.model) ? s.model : "google/gemini-3.1-flash-lite";
+  const requestedModel = req.model || s.model;
+  const model = supportedModels.has(requestedModel) ? requestedModel : "google/gemini-3.1-flash-lite";
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
