@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #fff; --bg2: #f8f9fb; --bg3: #f1f3f6;
+      --tx: #1a1d23; --tx2: #5f6672; --tx3: #9ca3af;
+      --bd: #e5e7eb; --ac: #2563eb; --ac2: #1d4ed8; --ac-bg: #eff4ff;
+      --ok: #059669; --ok-bg: #ecfdf5;
+      --r: 8px; --font: 'Segoe UI', -apple-system, sans-serif;
+    }
+    body { width: 380px; font-family: var(--font); background: var(--bg); color: var(--tx); }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px; background: var(--ac);
+    }
+    .header-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,.2); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+    .header-text { color: #fff; }
+    .header-text h1 { font-size: 14px; font-weight: 700; }
+    .header-text p { font-size: 11px; opacity: .8; }
+
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid var(--bd); }
+    .tab {
+      flex: 1; padding: 10px 6px; text-align: center;
+      font-size: 11.5px; color: var(--tx2); cursor: pointer;
+      border: none; background: none; font-family: var(--font);
+      border-bottom: 2px solid transparent; transition: all .15s;
+    }
+    .tab:hover { color: var(--ac); }
+    .tab.active { color: var(--ac); border-bottom-color: var(--ac); font-weight: 600; }
+
+    /* Tab content */
+    .tab-panel { display: none; padding: 16px; max-height: 400px; overflow-y: auto; }
+    .tab-panel.active { display: block; }
+
+    /* Sections */
+    .section { margin-bottom: 16px; }
+    .section-title {
+      font-size: 11px; font-weight: 700; color: var(--tx3);
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+    }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 12px; font-weight: 500; color: var(--tx2); margin-bottom: 4px; }
+    .field .hint { font-size: 10.5px; color: var(--tx3); margin-top: 3px; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--bd); border-radius: var(--r);
+      font-size: 12.5px; font-family: var(--font); background: var(--bg2); color: var(--tx);
+      outline: none; transition: border .15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ac); }
+    .field textarea { resize: vertical; min-height: 60px; }
+
+    /* Buttons */
+    .btn {
+      padding: 8px 16px; border-radius: var(--r); border: 1px solid var(--bd);
+      font-size: 12px; cursor: pointer; font-family: var(--font); transition: all .15s;
+    }
+    .btn-primary { background: var(--ac); color: #fff; border-color: var(--ac); }
+    .btn-primary:hover { background: var(--ac2); }
+    .btn-secondary { background: var(--bg); color: var(--tx2); }
+    .btn-secondary:hover { border-color: var(--ac); color: var(--ac); }
+    .btn-row { display: flex; gap: 6px; margin-top: 12px; }
+
+    /* Status */
+    .status {
+      padding: 8px 12px; border-radius: var(--r); font-size: 11.5px;
+      margin-top: 10px; display: none;
+    }
+    .status.ok { display: block; background: var(--ok-bg); color: var(--ok); }
+    .status.err { display: block; background: #fef2f2; color: #dc2626; }
+
+    /* Stats */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stat-card {
+      text-align: center; padding: 12px 8px;
+      background: var(--bg2); border-radius: var(--r); border: 1px solid var(--bd);
+    }
+    .stat-num { font-size: 20px; font-weight: 700; color: var(--ac); }
+    .stat-label { font-size: 10px; color: var(--tx3); margin-top: 2px; }
+
+    .sentiment-bar { display: flex; gap: 8px; margin-top: 12px; }
+    .sent-item {
+      flex: 1; text-align: center; padding: 8px;
+      border-radius: var(--r); font-size: 11px;
+    }
+    .sent-pos { background: #ecfdf5; color: #059669; }
+    .sent-neg { background: #fef2f2; color: #dc2626; }
+    .sent-neu { background: var(--bg3); color: var(--tx3); }
+
+    /* Template link */
+    .tpl-link {
+      display: block; text-align: center; padding: 10px;
+      border: 1px dashed var(--bd); border-radius: var(--r);
+      color: var(--ac); font-size: 12px; text-decoration: none; margin-top: 8px;
+      transition: all .15s;
+    }
+    .tpl-link:hover { background: var(--ac-bg); border-color: var(--ac); }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo">SM</div>
+    <div class="header-text">
+      <h1>SellerMind Pro</h1>
+      <p>OpenRouter ile Akıllı Müşteri Hizmeti</p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="settings">⚙️ Ayarlar</button>
+    <button class="tab" data-tab="policies">📋 Politikalar</button>
+    <button class="tab" data-tab="stats">📊 İstatistik</button>
+    <button class="tab" data-tab="tools">🔧 Araçlar</button>
+  </div>
+
+  <!-- Settings -->
+  <div class="tab-panel active" id="tab-settings">
+    <div class="section">
+      <div class="section-title">API Bağlantısı</div>
+      <div class="field">
+        <label>🔑 OpenRouter API Anahtarı</label>
+        <input type="password" id="apiKey" placeholder="sk-or-v1-...">
+        <div class="hint">openrouter.ai/settings/keys → Create Key</div>
+      </div>
+      <div class="field">
+        <label>🤖 AI Modeli</label>
+        <select id="model">
+          <option value="google/gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Ekonomik — Önerilen)</option>
+          <option value="openai/gpt-5.4-mini">GPT-5.4 Mini (Dengeli Kalite)</option>
+          <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 (Premium Yazım)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Mağaza Bilgileri</div>
+      <div class="field">
+        <label>🏪 Mağaza Adı</label>
+        <input type="text" id="storeName" placeholder="örn: TechDeals Hub">
+      </div>
+      <div class="field">
+        <label>👤 Temsilci Adı</label>
+        <input type="text" id="repName" placeholder="örn: Customer Support Team">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Ürün Araştırma</div>
+      <div class="field">
+        <label>🔗 Easync Store ID <span style="font-weight:400;color:var(--tx3);">(opsiyonel)</span></label>
+        <input type="text" id="easyncStoreId" placeholder="örn: akmLbbhz3Q5qTo4XY">
+        <div class="hint">Yoksa Amazon araması otomatik yapılır</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="saveSettings">💾 Kaydet</button>
+    </div>
+    <div class="status" id="settingsStatus"></div>
+  </div>
+
+  <!-- Policies -->
+  <div class="tab-panel" id="tab-policies">
+    <div class="section">
+      <div class="section-title">Mağaza Politikaları</div>
+      <div class="field">
+        <label>📦 Kargo Politikası</label>
+        <input type="text" id="shippingPolicy" placeholder="Free standard shipping (USPS, 3-5 days)">
+      </div>
+      <div class="field">
+        <label>⏱️ Hazırlık Süresi</label>
+        <input type="text" id="handlingPolicy" placeholder="1-2 business days">
+      </div>
+      <div class="field">
+        <label>↩️ İade Politikası</label>
+        <input type="text" id="returnPolicy" placeholder="30-day free returns">
+      </div>
+      <div class="field">
+        <label>💰 Tazminat Limiti</label>
+        <input type="text" id="discountLimit" placeholder="Up to 15% discount or partial refund">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="savePolicies">💾 Kaydet</button>
+    </div>
+    <div class="status" id="policiesStatus"></div>
+
+    <div class="section" style="margin-top:16px;">
+      <div class="section-title">Mesaj Şablonları</div>
+      <a class="tpl-link" id="openTemplates">📋 Şablon Yöneticisini Aç</a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="tab-panel" id="tab-stats">
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Toplam</div></div>
+      <div class="stat-card"><div class="stat-num" id="statToday">0</div><div class="stat-label">Bugün</div></div>
+      <div class="stat-card"><div class="stat-num" id="statWeek">0</div><div class="stat-label">Bu Hafta</div></div>
+    </div>
+    <div class="sentiment-bar">
+      <div class="sent-item sent-pos">😊 <span id="sentPos">0</span></div>
+      <div class="sent-item sent-neg">⚠️ <span id="sentNeg">0</span></div>
+      <div class="sent-item sent-neu">📋 <span id="sentNeu">0</span></div>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--tx3);">
+      Ortalama Puan: ⭐ <span id="statRating">-</span>
+    </div>
+  </div>
+
+  <!-- Tools -->
+  <div class="tab-panel" id="tab-tools">
+    <div class="section">
+      <div class="section-title">Yedekleme</div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="exportBtn">📤 Dışa Aktar</button>
+        <button class="btn btn-secondary" id="importBtn">📥 İçe Aktar</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">API anahtarı dışa aktarılmaz (güvenlik)</div>
+      <input type="file" id="importFile" accept=".json" style="display:none;">
+    </div>
+    <div class="section">
+      <div class="section-title">Hakkında</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.6;">
+        SellerMind Pro v1.2<br>
+        OpenRouter destekli eBay müşteri hizmeti asistanı.<br>
+        Amazon Rufus entegrasyonu ile ürün araştırma.<br>
+        <span style="color:var(--tx3);">© 2026 SellerMind</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

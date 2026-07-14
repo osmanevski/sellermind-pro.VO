@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Şablon Yöneticisi — SellerMind Pro</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --bg:#fff; --bg2:#f8f9fb; --bg3:#f1f3f6;
+      --tx:#1a1d23; --tx2:#5f6672; --tx3:#9ca3af;
+      --bd:#e5e7eb; --ac:#2563eb; --ac2:#1d4ed8; --ac-bg:#eff4ff;
+      --ok:#059669; --r:8px; --font:'Segoe UI',-apple-system,sans-serif;
+    }
+    body { font-family:var(--font); background:var(--bg2); color:var(--tx); min-height:100vh; margin:0; }
+
+    .header {
+      background:var(--ac); color:#fff; padding:16px 24px;
+      display:flex; align-items:center; gap:12px;
+      position:sticky; top:0; z-index:10;
+    }
+    .header h1 { font-size:16px; font-weight:700; }
+    .header p { font-size:12px; opacity:.8; }
+
+    .container { 
+      display:grid; 
+      grid-template-columns:280px 1fr; 
+      max-width:1200px; 
+      margin:0 auto; 
+      gap:16px; 
+      padding:16px; 
+      height:calc(100vh - 100px);
+    }
+    
+    @media (max-width:768px) {
+      .container {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+    }
+
+    /* List */
+    .list-panel { 
+      background:var(--bg); 
+      border-radius:var(--r); 
+      border:1px solid var(--bd); 
+      overflow:hidden; 
+      display:flex; 
+      flex-direction:column;
+      height:100%;
+    }
+    .list-header { padding:12px 14px; border-bottom:1px solid var(--bd); display:flex; justify-content:space-between; align-items:center; }
+    .list-header h3 { font-size:13px; font-weight:600; }
+    .list-add {
+      padding:4px 10px; border-radius:6px; border:1px solid var(--ac);
+      background:var(--ac-bg); color:var(--ac); font-size:11px;
+      cursor:pointer; font-family:var(--font);
+    }
+    .tpl-list { flex:1; overflow-y:auto; }
+    .tpl-item {
+      display:flex; align-items:center; gap:8px; padding:10px 14px;
+      border-bottom:1px solid var(--bg3); cursor:pointer; transition:background .1s;
+    }
+    .tpl-item:hover { background:var(--bg2); }
+    .tpl-item.active { background:var(--ac-bg); border-left:3px solid var(--ac); }
+    .tpl-icon { font-size:16px; }
+    .tpl-info { flex:1; min-width:0; }
+    .tpl-name { font-size:12.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tpl-cat { font-size:10.5px; color:var(--tx3); }
+    .tpl-del {
+      width:24px; height:24px; border:none; border-radius:6px;
+      background:none; color:var(--tx3); cursor:pointer; font-size:14px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .tpl-del:hover { background:#fef2f2; color:#dc2626; }
+    .empty-msg { padding:24px; text-align:center; color:var(--tx3); font-size:12px; }
+
+    /* Editor */
+    .editor-panel { 
+      background:var(--bg); 
+      border-radius:var(--r); 
+      border:1px solid var(--bd); 
+      padding:16px; 
+      display:flex;
+      flex-direction:column;
+      height:100%;
+      overflow-y:auto;
+    }
+    .editor-panel h3 { font-size:13px; font-weight:600; margin-bottom:14px; }
+    .field { margin-bottom:12px; }
+    .field label { display:block; font-size:12px; font-weight:500; color:var(--tx2); margin-bottom:4px; }
+    .field input, .field select, .field textarea {
+      width:100%; padding:8px 10px; border:1px solid var(--bd); border-radius:var(--r);
+      font-size:12.5px; font-family:var(--font); background:var(--bg2); color:var(--tx); outline:none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color:var(--ac); }
+    .field textarea { min-height:140px; resize:vertical; line-height:1.5; }
+    .vars-hint {
+      font-size:10.5px; color:var(--tx3); margin-top:4px; line-height:1.6;
+    }
+    .btn-row { display:flex; gap:6px; margin-top:14px; }
+    .btn {
+      padding:8px 16px; border-radius:var(--r); border:1px solid var(--bd);
+      font-size:12px; cursor:pointer; font-family:var(--font); transition:all .15s;
+    }
+    .btn-primary { background:var(--ac); color:#fff; border-color:var(--ac); }
+    .btn-primary:hover { background:var(--ac2); }
+    .btn-ai { background:var(--bg); color:var(--ac); border-color:var(--ac); }
+    .btn-ai:hover { background:var(--ac-bg); }
+    .saved { color:var(--ok); font-size:11px; margin-left:8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>📋 Şablon Yöneticisi</h1>
+      <p>Hazır mesaj şablonlarını oluştur ve düzenle</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="list-panel">
+      <div class="list-header">
+        <h3>Şablonlar</h3>
+        <button class="list-add" id="addBtn">+ Yeni</button>
+      </div>
+      <div class="tpl-list" id="tplList">
+        <div class="empty-msg">Henüz şablon yok. "Yeni" butonuna tıklayın.</div>
+      </div>
+    </div>
+
+    <div class="editor-panel" id="editor">
+      <h3 id="editorTitle">Yeni Şablon</h3>
+      <div class="field">
+        <label>Şablon Adı</label>
+        <input type="text" id="tplName" placeholder="örn: Kargo Gecikmesi Yanıtı">
+      </div>
+      <div class="field">
+        <label>Kategori</label>
+        <select id="tplCategory">
+          <option value="general">📝 Genel</option>
+          <option value="refund">💰 İade</option>
+          <option value="shipping">📦 Kargo</option>
+          <option value="return">↩️ Geri Gönderim</option>
+          <option value="defective">⚠️ Arızalı/Hasarlı</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Mesaj İçeriği</label>
+        <textarea id="tplContent" placeholder="Mesaj şablonunuzu buraya yazın..."></textarea>
+        <div class="vars-hint">
+          Kullanılabilir değişkenler: <code>{customer_name}</code> <code>{tracking_number}</code> <code>{order_number}</code> <code>{item_name}</code> <code>{refund_amount}</code> <code>{store_name}</code> <code>{rep_name}</code>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="saveBtn">💾 Kaydet</button>
+        <button class="btn btn-ai" id="aiBtn">✨ AI ile İyileştir</button>
+        <span class="saved" id="savedMsg" style="display:none;">✅ Kaydedildi!</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="templates.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "SellerMind Pro",
+  "version": "1.3.0",
+  "description": "OpenRouter destekli eBay müşteri hizmetleri ve ürün araştırma asistanı",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "scripting",
+    "contextMenus",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://*.ebay.com/*",
+    "*://*.ebay.co.uk/*",
+    "*://*.ebay.de/*",
+    "*://*.ebay.fr/*",
+    "*://*.amazon.com/*",
+    "*://*.amazon.co.uk/*",
+    "*://*.amazon.de/*",
+    "*://my.easync.io/*",
+    "https://openrouter.ai/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SellerMind Pro — AI Seller Assistant"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.ebay.com/*",
+        "*://*.ebay.co.uk/*",
+        "*://*.ebay.de/*",
+        "*://*.ebay.fr/*"
+      ],
+      "all_frames": true,
+      "js": ["content.js"],
+      "css": ["styles/content.css"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "toggle-widget": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Toggle SellerMind Widget"
+    },
+    "quick-reply": {
+      "suggested_key": {
+        "default": "Alt+R"
+      },
+      "description": "Quick AI Reply"
+    }
+  }
+}
