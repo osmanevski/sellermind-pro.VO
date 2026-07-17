@@ -81,11 +81,14 @@ async function startProductResearch(request, sender) {
     let asin = null;
     let matchSource = null;
 
-    if (settings.easyncStoreId) {
-      asin = await findAsinFromEasync(settings.easyncStoreId, request.title);
+    // Prefer the eBay item ID for the Easync lookup (exact single-listing match);
+    // fall back to the title only for Amazon search.
+    const searchKey = request.itemId || request.title;
+    if (settings.easyncStoreId && searchKey) {
+      asin = await findAsinFromEasync(settings.easyncStoreId, searchKey);
       if (asin) matchSource = "easync";
     }
-    if (!asin) {
+    if (!asin && request.title) {
       asin = await findAsinFromAmazonSearch(request.title);
       if (asin) matchSource = "amazon-search";
     }
@@ -120,32 +123,39 @@ function sendToEbay(data) {
   } catch(e) {}
 }
 
-// ===== Easync: Find ASIN (inline script) =====
-function findAsinFromEasync(storeId, title) {
+// ===== Easync: Find ASIN by eBay item ID (inline script) =====
+function findAsinFromEasync(storeId, searchKey) {
   return new Promise(resolve => {
-    const url = `https://my.easync.io/stores/${storeId}/listings?listingsFilter=active&searchString=${encodeURIComponent(title)}`;
+    const url = `https://my.easync.io/stores/${storeId}/listings?listingsFilter=active&searchString=${encodeURIComponent(searchKey)}`;
     chrome.tabs.create({ url, active: false }, tab => {
       researchFlow.tabIds.push(tab.id);
       waitForTab(tab.id, () => {
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: function() {
-            const rx = /[A-Z0-9]{10}/;
-            for (const sel of ['a[href*="amzdrop.com/dp/"]','a[href*="amazon.com/dp/"]','[data-asin]']) {
-              try {
-                const el = document.querySelector(sel);
-                if (!el) continue;
-                if (el.dataset?.asin && rx.test(el.dataset.asin)) return el.dataset.asin;
-                const h = el.href || el.closest('a')?.href || '';
-                const m = h.match(/\/dp\/([A-Z0-9]{10})/i);
+          func: async function() {
+            const find = () => {
+              // 1) Explicit Amazon/amzdrop product links (/dp/<ASIN>)
+              for (const a of document.querySelectorAll('a[href*="/dp/"]')) {
+                const m = (a.href || '').match(/\/dp\/([A-Z0-9]{10})/i);
                 if (m) return m[1].toUpperCase();
-                const t = el.textContent?.trim();
-                if (t && rx.test(t)) return t.match(rx)[0];
-              } catch(e){}
-            }
-            for (const a of document.querySelectorAll('a[href]')) {
-              const m = a.href.match(/\/dp\/([A-Z0-9]{10})/i);
-              if (m) return m[1].toUpperCase();
+              }
+              // 2) data-asin attribute
+              const da = document.querySelector('[data-asin]');
+              const dav = da && da.getAttribute('data-asin');
+              if (dav && /^[A-Z0-9]{10}$/i.test(dav)) return dav.toUpperCase();
+              // 3) The Source column shows the ASIN as text (e.g. B0FKGTVG6S).
+              //    Match a B0-prefixed 10-char ASIN so the 12-digit eBay item ID
+              //    is never picked up by mistake.
+              const bodyText = document.body ? document.body.innerText : '';
+              const bm = bodyText.match(/\bB0[0-9A-Z]{8}\b/);
+              if (bm) return bm[0];
+              return null;
+            };
+            // Easync loads the listing rows asynchronously — poll up to ~6s.
+            for (let i = 0; i < 20; i++) {
+              const r = find();
+              if (r) return r;
+              await new Promise(res => setTimeout(res, 300));
             }
             return null;
           }

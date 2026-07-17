@@ -989,20 +989,37 @@ function getSettings() { return new Promise(resolve => { chrome.storage.local.ge
 
 /* ===== Product Research — Only via explicit button ===== */
 
+// Pull the eBay item ID (e.g. 157450616608) from the item link on the message page.
+function extractEbayItemId() {
+  for (const a of document.querySelectorAll('a[href*="/itm/"]')) {
+    const m = (a.href || "").match(/\/itm\/(?:[^/?#]*\/)?(\d{9,15})/);
+    if (m) return m[1];
+  }
+  const m2 = location.href.match(/\/itm\/(?:[^/?#]*\/)?(\d{9,15})/);
+  return m2 ? m2[1] : null;
+}
+
 function startRufusResearch() {
+  const itemId = extractEbayItemId();
+
+  // Title is kept only as a fallback for Amazon search when no item ID / Easync match.
   const titleSelectors = ['.msg-item-title', '.item-title', 'a[href*="/itm/"]', '.message-header__item-title', '.s-item__title', '[data-test-id="item-title"]'];
   let itemTitle = "";
   for (const sel of titleSelectors) {
     const el = document.querySelector(sel);
     if (el) { itemTitle = el.innerText?.trim() || el.textContent?.trim() || ""; if (itemTitle) break; }
   }
-  if (!itemTitle) {
-    appendMessage("⚠️ Ürün başlığı bulunamadı. Yanıt oluşturulmadı; nasıl ilerlemek istediğinizi yazın.", "system");
+
+  if (!itemId && !itemTitle) {
+    appendMessage("⚠️ eBay ürün bağlantısı bulunamadı. Yanıt oluşturulmadı; nasıl ilerlemek istediğinizi yazın.", "system");
     document.getElementById("sm-input").focus();
     return;
   }
-  appendMessage(`🔍 Araştırılıyor: "${itemTitle.substring(0, 50)}..."`, "system");
-  chrome.runtime.sendMessage({ action: "startRufusFlow", title: itemTitle, question: SM.latestCustomerMsg });
+
+  appendMessage(itemId
+    ? `🔍 Araştırılıyor: eBay ürün no ${itemId}`
+    : `🔍 Araştırılıyor: "${itemTitle.substring(0, 50)}..."`, "system");
+  chrome.runtime.sendMessage({ action: "startRufusFlow", itemId, title: itemTitle, question: SM.latestCustomerMsg });
   SM.rufusInProgress = true;
   showRufusProgress();
 }
