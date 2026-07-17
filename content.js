@@ -33,7 +33,7 @@ function injectWidget() {
     <div id="sm-header">
       <div id="sm-header-left">
         <div id="sm-header-logo">SM</div>
-        <span id="sm-header-title">SellerMind Pro</span>
+        <span id="sm-header-title">SellerMindPro.VO</span>
       </div>
       <div id="sm-header-actions">
         <button class="sm-hdr-btn" id="sm-btn-theme" title="Tema">🌙</button>
