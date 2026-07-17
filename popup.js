@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Load settings
-  const fields = ["apiKey", "storeName", "repName", "easyncStoreId", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
+  const fields = ["apiKey", "anthropicApiKey", "storeName", "repName", "easyncStoreId", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
   
   chrome.storage.local.get(fields, (data) => {
     fields.forEach(f => {
@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Save settings
   document.getElementById("saveSettings").addEventListener("click", () => {
     const data = {};
-    ["apiKey", "storeName", "repName", "easyncStoreId"].forEach(f => {
+    ["apiKey", "anthropicApiKey", "storeName", "repName", "easyncStoreId"].forEach(f => {
       const val = document.getElementById(f)?.value?.trim();
       if (val) data[f] = val;
     });

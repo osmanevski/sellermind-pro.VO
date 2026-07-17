@@ -256,9 +256,16 @@ function cleanupFlow() {
   if (researchFlow) { researchFlow.tabIds.forEach(safeCloseTab); researchFlow = null; }
 }
 
-// ===== OpenRouter API =====
+// ===== AI Provider Dispatch (OpenRouter or Claude/Anthropic) =====
 async function handleClaudeRequest(req) {
   const s = await getSettings();
+  const provider = req.provider || s.provider || "openrouter";
+  if (provider === "anthropic") return handleAnthropicRequest(req, s);
+  return handleOpenRouterRequest(req, s);
+}
+
+// ===== OpenRouter API =====
+async function handleOpenRouterRequest(req, s) {
   if (!s.apiKey) throw new Error("OpenRouter API anahtarı ayarlanmamış.");
   const supportedModels = new Set([
     "google/gemini-3.1-flash-lite",
@@ -290,6 +297,46 @@ async function handleClaudeRequest(req) {
   }
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Model boş yanıt döndürdü.");
+  return text;
+}
+
+// ===== Claude (Anthropic) API =====
+async function handleAnthropicRequest(req, s) {
+  if (!s.anthropicApiKey) throw new Error("Claude API anahtarı ayarlanmamış.");
+  const supportedModels = new Set([
+    "claude-haiku-4-5",
+    "claude-sonnet-5",
+    "claude-opus-4-8"
+  ]);
+  const requestedModel = req.model || s.anthropicModel;
+  const model = supportedModels.has(requestedModel) ? requestedModel : "claude-haiku-4-5";
+
+  const body = {
+    model,
+    max_tokens: req.maxTokens || 600,
+    system: req.systemPrompt,
+    messages: (req.messages || [])
+  };
+  // temperature is only accepted on Haiku 4.5 (removed on Sonnet 5 / Opus 4.8 → 400)
+  if (model === "claude-haiku-4-5") body.temperature = req.temperature || 0.3;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": s.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `API hatası: ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data?.content?.[0]?.text;
   if (!text) throw new Error("Model boş yanıt döndürdü.");
   return text;
 }
@@ -326,12 +373,12 @@ function getResponseStats() {
 }
 
 function exportAllSettings() {
-  return new Promise(r => chrome.storage.local.get(null, d => { delete d.apiKey; r(d); }));
+  return new Promise(r => chrome.storage.local.get(null, d => { delete d.apiKey; delete d.anthropicApiKey; r(d); }));
 }
 
 function importAllSettings(data) {
-  return new Promise(r => chrome.storage.local.get(["apiKey"], c => {
-    chrome.storage.local.set({ ...data, apiKey: c.apiKey }, r);
+  return new Promise(r => chrome.storage.local.get(["apiKey", "anthropicApiKey"], c => {
+    chrome.storage.local.set({ ...data, apiKey: c.apiKey, anthropicApiKey: c.anthropicApiKey }, r);
   }));
 }
 

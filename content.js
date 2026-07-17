@@ -46,12 +46,15 @@ function injectWidget() {
       <span id="sm-context-text">Hazır — Bir müşteri mesajı seçin</span>
     </div>
     <div id="sm-model-bar">
-      <label for="sm-model-select">Model</label>
-      <select id="sm-model-select" title="Bu yanıt için kullanılacak yapay zeka modeli">
-        <option value="google/gemini-3.1-flash-lite">Gemini 3.1 Flash Lite · Ekonomik</option>
-        <option value="openai/gpt-5.4-mini">GPT-5.4 Mini · Dengeli</option>
-        <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 · Premium</option>
+      <label for="sm-provider-select">API</label>
+      <select id="sm-provider-select" title="Kullanılacak API sağlayıcısı">
+        <option value="openrouter">OpenRouter</option>
+        <option value="anthropic">Claude API</option>
       </select>
+      <select id="sm-model-select" title="Bu yanıt için kullanılacak yapay zeka modeli"></select>
+    </div>
+    <div id="sm-widget-actions">
+      <button class="sm-widget-action" id="sm-btn-alexa" title="Müşterinin sorusunu Alexa'ya sorulacak bağımsız soruya çevir">🔊 Alexa'ya Sor</button>
     </div>
     <div id="sm-tone-bar"></div>
     <div id="sm-messages"></div>
@@ -80,20 +83,56 @@ function injectWidget() {
   bindEvents();
 }
 
+const PROVIDER_MODELS = {
+  openrouter: [
+    { value: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite · Ekonomik" },
+    { value: "openai/gpt-5.4-mini", label: "GPT-5.4 Mini · Dengeli" },
+    { value: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5 · Premium" }
+  ],
+  anthropic: [
+    { value: "claude-haiku-4-5", label: "Claude Haiku 4.5 · Ekonomik" },
+    { value: "claude-sonnet-5", label: "Claude Sonnet 5 · Dengeli" },
+    { value: "claude-opus-4-8", label: "Claude Opus 4.8 · Premium" }
+  ]
+};
+
 function initModelSelector() {
-  const select = document.getElementById("sm-model-select");
-  const supportedModels = [
-    "google/gemini-3.1-flash-lite",
-    "openai/gpt-5.4-mini",
-    "anthropic/claude-haiku-4.5"
-  ];
-  chrome.storage.local.get(["model"], data => {
-    select.value = supportedModels.includes(data.model)
-      ? data.model
-      : "google/gemini-3.1-flash-lite";
+  const providerSelect = document.getElementById("sm-provider-select");
+  const modelSelect = document.getElementById("sm-model-select");
+
+  const persistModel = (provider, value) => {
+    chrome.storage.local.set(provider === "anthropic" ? { anthropicModel: value } : { model: value });
+  };
+
+  const populateModels = (provider, selectedModel) => {
+    modelSelect.innerHTML = "";
+    PROVIDER_MODELS[provider].forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m.value;
+      opt.textContent = m.label;
+      modelSelect.appendChild(opt);
+    });
+    const valid = PROVIDER_MODELS[provider].some(m => m.value === selectedModel);
+    modelSelect.value = valid ? selectedModel : PROVIDER_MODELS[provider][0].value;
+  };
+
+  chrome.storage.local.get(["provider", "model", "anthropicModel"], data => {
+    const provider = data.provider === "anthropic" ? "anthropic" : "openrouter";
+    providerSelect.value = provider;
+    populateModels(provider, provider === "anthropic" ? data.anthropicModel : data.model);
   });
-  select.addEventListener("change", () => {
-    chrome.storage.local.set({ model: select.value });
+
+  providerSelect.addEventListener("change", () => {
+    const provider = providerSelect.value;
+    chrome.storage.local.set({ provider });
+    chrome.storage.local.get(["model", "anthropicModel"], data => {
+      populateModels(provider, provider === "anthropic" ? data.anthropicModel : data.model);
+      persistModel(provider, modelSelect.value);
+    });
+  });
+
+  modelSelect.addEventListener("change", () => {
+    persistModel(providerSelect.value, modelSelect.value);
   });
 }
 
@@ -134,6 +173,8 @@ function bindEvents() {
     SM.isMinimized = !SM.isMinimized;
     widget.classList.toggle("sm-minimized", SM.isMinimized);
   });
+
+  document.getElementById("sm-btn-alexa").addEventListener("click", startAlexaFromWidget);
 
   document.getElementById("sm-btn-theme").addEventListener("click", () => {
     SM.isDark = !SM.isDark;
@@ -319,7 +360,6 @@ function injecteBayButtons() {
     dropdown.className = "sm-action-dropdown";
 
     const actions = [
-      { icon: "🔊", label: "Alexa'ya Sor", action: () => startAlexaFlow(msgNode) },
       { icon: "🔍", label: "Ürün Araştır", action: () => startSession(msgNode, null, null, true) },
       { icon: "💰", label: "İade Teklifi", action: () => startSession(msgNode, null, "Offer a full refund politely") },
       { icon: "📦", label: "Değişim Teklifi", action: () => startSession(msgNode, null, "Offer a free replacement") },
@@ -533,10 +573,19 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   input.focus();
 }
 
-async function startAlexaFlow(msgNode) {
-  startSession(msgNode);
-  if (!SM.latestCustomerMsg) return;
+// Alexa flow is triggered from inside the SellerMind widget (not the eBay menu).
+// It operates on the active session's customer message.
+function startAlexaFromWidget() {
+  toggleWidget(true);
+  if (!SM.latestCustomerMsg) {
+    appendMessage("Önce bir müşteri mesajı için 'AI Yanıt'a basın; ardından Alexa'ya sorabilirsiniz.", "system");
+    document.getElementById("sm-input").focus();
+    return;
+  }
+  runAlexaFlow();
+}
 
+async function runAlexaFlow() {
   appendMessage("🔊 Alexa'ya sorulacak bağımsız soru hazırlanıyor...", "system");
   SM.chatHistory.push({
     role: "user",
@@ -675,6 +724,7 @@ function callClaude(systemPrompt, messages, temperature = 0.3, maxTokens = 600) 
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({
       action: "callClaude",
+      provider: document.getElementById("sm-provider-select")?.value,
       model: document.getElementById("sm-model-select")?.value,
       systemPrompt,
       messages,

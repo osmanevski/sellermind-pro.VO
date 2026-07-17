@@ -87,6 +87,13 @@
   color: var(--tx3); font-size: 10.5px; font-weight: 700;
   text-transform: uppercase; letter-spacing: .4px;
 }
+#sm-provider-select {
+  flex-shrink: 0; padding: 5px 24px 5px 8px;
+  border: 1px solid var(--bd); border-radius: 7px;
+  background: var(--bg2); color: var(--tx); outline: none;
+  font: 11.5px var(--sm-font); cursor: pointer;
+}
+#sm-provider-select:focus { border-color: var(--ac); }
 #sm-model-select {
   flex: 1; min-width: 0; padding: 5px 28px 5px 8px;
   border: 1px solid var(--bd); border-radius: 7px;
@@ -94,6 +101,20 @@
   font: 11.5px var(--sm-font); cursor: pointer;
 }
 #sm-model-select:focus { border-color: var(--ac); }
+
+/* ===== Widget Actions (Alexa, etc.) ===== */
+#sm-widget-actions {
+  display: flex; gap: 6px; padding: 8px 12px;
+  border-bottom: 1px solid var(--bd2); background: var(--bg);
+}
+.sm-widget-action {
+  padding: 5px 12px; border-radius: 20px; border: 1px solid var(--bd);
+  background: var(--bg2); color: var(--tx2); cursor: pointer;
+  font: 11.5px var(--sm-font); white-space: nowrap; transition: all .15s;
+}
+.sm-widget-action:hover {
+  border-color: var(--ac); color: var(--ac); background: var(--ac-bg);
+}
 
 /* ===== Tone Bar ===== */
 #sm-tone-bar {

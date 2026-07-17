@@ -20,7 +20,8 @@
     "*://*.amazon.co.uk/*",
     "*://*.amazon.de/*",
     "*://my.easync.io/*",
-    "https://openrouter.ai/*"
+    "https://openrouter.ai/*",
+    "https://api.anthropic.com/*"
   ],
   "background": {
     "service_worker": "background.js"
