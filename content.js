@@ -43,7 +43,7 @@ function injectWidget() {
     </div>
     <div id="sm-context-bar">
       <span class="sm-dot neutral" id="sm-dot"></span>
-      <span id="sm-context-text">Hazır — Bir müşteri mesajı seçin</span>
+      <span id="sm-context-text">Hazır — ✦ ile açık mesaj konuşmasını başlatın</span>
     </div>
     <div id="sm-model-bar">
       <label for="sm-provider-select">API</label>
@@ -55,8 +55,8 @@ function injectWidget() {
     </div>
     <div id="sm-widget-actions">
       <button class="sm-widget-action" id="sm-btn-alexa" title="Müşterinin sorusunu Alexa'ya sorulacak bağımsız soruya çevir">🔊 Alexa'ya Sor</button>
+      <button class="sm-widget-action" id="sm-btn-research" title="Açık mesajın ürününü Easync/Amazon üzerinden araştır">🔍 Ürün Araştır</button>
     </div>
-    <div id="sm-tone-bar"></div>
     <div id="sm-messages"></div>
     <div id="sm-input-area">
       <textarea id="sm-input" placeholder="Nasıl yanıtlamamı istediğinizi yazın..." rows="1"></textarea>
@@ -79,7 +79,6 @@ function injectWidget() {
   document.body.appendChild(fab);
 
   initModelSelector();
-  initToneBar();
   bindEvents();
 }
 
@@ -136,25 +135,6 @@ function initModelSelector() {
   });
 }
 
-/* ===== Tone Bar ===== */
-function initToneBar() {
-  const bar = document.getElementById("sm-tone-bar");
-  if (!bar) return;
-  bar.innerHTML = "";
-  Object.entries(SM.tones).forEach(([key, tone]) => {
-    const chip = document.createElement("button");
-    chip.className = `sm-tone${key === SM.currentTone ? " active" : ""}`;
-    chip.dataset.tone = key;
-    chip.textContent = `${tone.emoji} ${tone.label}`;
-    chip.addEventListener("click", () => {
-      SM.currentTone = key;
-      bar.querySelectorAll(".sm-tone").forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
-    });
-    bar.appendChild(chip);
-  });
-}
-
 /* ===== Events ===== */
 function bindEvents() {
   const widget = document.getElementById("sellermind-widget");
@@ -162,7 +142,9 @@ function bindEvents() {
   const input = document.getElementById("sm-input");
   const tooltip = document.getElementById("sm-edit-tooltip");
 
-  fab.addEventListener("click", () => toggleWidget());
+  // Clicking the ✦ star opens the widget and starts a session about the
+  // eBay conversation currently open on screen.
+  fab.addEventListener("click", () => startSessionFromOpenConversation());
 
   document.getElementById("sm-btn-close").addEventListener("click", () => {
     widget.classList.remove("sm-visible");
@@ -175,6 +157,7 @@ function bindEvents() {
   });
 
   document.getElementById("sm-btn-alexa").addEventListener("click", startAlexaFromWidget);
+  document.getElementById("sm-btn-research").addEventListener("click", startResearchFromWidget);
 
   document.getElementById("sm-btn-theme").addEventListener("click", () => {
     SM.isDark = !SM.isDark;
@@ -298,16 +281,6 @@ function bindEvents() {
     if (msg.action === "contextMenuReply") { SM.latestCustomerMsg = msg.text; toggleWidget(true); startSession(null, msg.text); }
     if (msg.action === "rufusResult") handleRufusResult(msg);
   });
-
-  // Close any open dropdown on outside click
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".sm-action-menu") && !e.target.closest(".sm-action-dropdown")) {
-      document.querySelectorAll(".sm-action-dropdown").forEach(d => {
-        d.style.display = "none";
-        if (d.parentNode === document.body) d.remove();
-      });
-    }
-  });
 }
 
 function toggleWidget(forceOpen = false) {
@@ -324,217 +297,40 @@ function toggleWidget(forceOpen = false) {
   }
 }
 
-/* ===== eBay Button Injection — Clean 2-Button Design ===== */
-function injecteBayButtons() {
-  const selectors = [
-    ".app-conversation__message-bubble__message",
-    ".m2m-message-bubble",
-    ".message-bubble"
-  ];
-  let messages = [];
-  selectors.forEach(s => { document.querySelectorAll(s).forEach(n => { if (!messages.includes(n)) messages.push(n); }); });
-
-  messages.forEach(msgNode => {
-    if (msgNode.dataset.smProcessed) return;
-    msgNode.dataset.smProcessed = "true";
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "sm-ebay-bar";
-
-    // Primary: AI Yanıt
-    const aiBtn = document.createElement("button");
-    aiBtn.className = "sm-ebay-btn sm-primary";
-    aiBtn.innerHTML = `<span class="sm-btn-icon">✦</span> AI Yanıt`;
-    aiBtn.addEventListener("click", () => startSession(msgNode));
-
-    // Secondary: Dropdown menu
-    const menuWrap = document.createElement("div");
-    menuWrap.className = "sm-action-menu";
-
-    const menuBtn = document.createElement("button");
-    menuBtn.className = "sm-ebay-btn sm-more";
-    menuBtn.innerHTML = `⋯`;
-    menuBtn.title = "Daha fazla işlem";
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "sm-action-dropdown";
-
-    const actions = [
-      { icon: "🔍", label: "Ürün Araştır", action: () => startSession(msgNode, null, null, true) },
-      { icon: "💰", label: "İade Teklifi", action: () => startSession(msgNode, null, "Offer a full refund politely") },
-      { icon: "📦", label: "Değişim Teklifi", action: () => startSession(msgNode, null, "Offer a free replacement") },
-      { icon: "🙏", label: "Özür Mesajı", action: () => startSession(msgNode, null, "Write a sincere apology") },
-      { divider: true },
-      { icon: "📋", label: "Şablonlar", action: () => { openTemplateMenu(dropdown, msgNode); } }
-    ];
-
-    actions.forEach(a => {
-      if (a.divider) {
-        const hr = document.createElement("div");
-        hr.className = "sm-dropdown-divider";
-        dropdown.appendChild(hr);
-        return;
-      }
-      const item = document.createElement("button");
-      item.className = "sm-dropdown-item";
-      item.innerHTML = `<span class="sm-di-icon">${a.icon}</span>${a.label}`;
-      item.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dropdown.style.display = "none";
-        if (dropdown.parentNode === document.body) dropdown.remove();
-        a.action();
-      });
-      dropdown.appendChild(item);
-    });
-
-    menuBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      // Close all open dropdowns
-      document.querySelectorAll(".sm-action-dropdown").forEach(d => {
-        d.style.display = "none";
-        if (d.parentNode === document.body) d.remove();
-      });
-      
-      // Position dropdown fixed on body with smart positioning
-      const rect = menuBtn.getBoundingClientRect();
-      const dropdownHeight = 280; // max-height value
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      
-      let topPos;
-      let bottomPos;
-      
-      // If enough space below, open down; otherwise open up
-      if (spaceBelow > dropdownHeight + 20) {
-        topPos = rect.bottom + 4;
-        bottomPos = "auto";
-      } else if (spaceAbove > dropdownHeight + 20) {
-        topPos = "auto";
-        bottomPos = window.innerHeight - rect.top + 4;
-      } else {
-        // Default to down if neither has enough space
-        topPos = rect.bottom + 4;
-        bottomPos = "auto";
-      }
-      
-      dropdown.style.cssText = "display:block;position:fixed;top:" + (topPos === "auto" ? "auto" : topPos + "px") + ";bottom:" + (bottomPos === "auto" ? "auto" : bottomPos + "px") + ";left:" + rect.left + "px;z-index:2147483646;min-width:180px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.15);padding:4px;";
-      document.body.appendChild(dropdown);
-    });
-
-    menuWrap.appendChild(menuBtn);
-    wrapper.appendChild(aiBtn);
-    wrapper.appendChild(menuWrap);
-
-    const parentBubble = msgNode.closest(
-      ".app-conversation__message-bubble, .app-conversation__message, .m2m-message-container"
-    ) || msgNode;
-    if (parentBubble.dataset.smWrapper) return;
-    parentBubble.dataset.smWrapper = "true";
-    if (parentBubble.nextSibling) {
-      parentBubble.parentNode.insertBefore(wrapper, parentBubble.nextSibling);
-    } else {
-      parentBubble.parentNode.appendChild(wrapper);
-    }
-  });
-}
-
-function openTemplateMenu(parentDropdown, msgNode) {
-  // Close the dropdown menu first
-  parentDropdown.style.display = "none";
-  if (parentDropdown.parentNode === document.body) parentDropdown.remove();
-
-  // Remove any old template popup
-  var oldPopup = document.getElementById("sm-template-popup");
-  if (oldPopup) oldPopup.remove();
-
-  // Find the ⋯ button closest to this message for positioning
-  var msgBar = msgNode ? msgNode.closest(".app-conversation__message-bubble, .app-conversation__message, .m2m-message-container") : null;
-  var menuBtn = msgBar ? msgBar.parentElement.querySelector(".sm-ebay-btn.sm-more") : null;
-  if (!menuBtn) {
-    var allBtns = document.querySelectorAll(".sm-ebay-btn.sm-more");
-    if (allBtns.length > 0) menuBtn = allBtns[allBtns.length - 1];
-  }
-  var btnRect = menuBtn ? menuBtn.getBoundingClientRect() : { bottom: 300, left: 300, top: 280 };
-
-  // Calculate available space
-  var viewH = window.innerHeight;
-  var spaceBelow = viewH - btnRect.bottom - 10;
-  var spaceAbove = btnRect.top - 10;
-  var maxH = Math.max(spaceBelow, spaceAbove, 200);
-  if (maxH > 400) maxH = 400;
-
-  var openUp = spaceBelow < maxH && spaceAbove > spaceBelow;
-  var topPos, bottomPos;
-  
-  if (openUp) {
-    topPos = "auto";
-    bottomPos = viewH - btnRect.top + 4;
-  } else {
-    topPos = btnRect.bottom + 4;
-    bottomPos = "auto";
-  }
-
-  // Build popup — ALL styles inline
-  var popup = document.createElement("div");
-  popup.id = "sm-template-popup";
-  popup.style.cssText = "position:fixed;top:" + (topPos === "auto" ? "auto" : topPos + "px") + ";bottom:" + (bottomPos === "auto" ? "auto" : bottomPos + "px") + ";left:" + btnRect.left + "px;z-index:2147483647;min-width:220px;max-width:300px;max-height:" + maxH + "px;overflow-y:auto;background:#ffffff;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:6px;font-family:Segoe UI,sans-serif;scrollbar-width:thin;";
-
-  // Header
-  var hdr = document.createElement("div");
-  hdr.style.cssText = "padding:6px 10px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e5e7eb;margin-bottom:4px;position:sticky;top:-6px;background:#ffffff;z-index:1;";
-  hdr.textContent = "\u015eablonlar";
-  popup.appendChild(hdr);
-
-  document.body.appendChild(popup);
-
-  // Close on outside click
-  function closePopup(e) {
-    if (popup && !popup.contains(e.target)) {
-      if (popup.parentNode) popup.remove();
-      document.removeEventListener("mousedown", closePopup, true);
-    }
-  }
-  setTimeout(function() {
-    document.addEventListener("mousedown", closePopup, true);
-  }, 100);
-
-  // Load templates
-  chrome.storage.local.get(["templates"], function(data) {
-    var templates = data.templates || [];
-    if (templates.length === 0) {
-      var empty = document.createElement("div");
-      empty.style.cssText = "padding:16px 10px;font-size:12px;color:#9ca3af;text-align:center;";
-      empty.textContent = "Hen\u00fcz \u015fablon yok. Ayarlardan ekleyin.";
-      popup.appendChild(empty);
-    } else {
-      var cats = { refund: "\ud83d\udcb0", shipping: "\ud83d\udce6", "return": "\u21a9\ufe0f", defective: "\u26a0\ufe0f", general: "\ud83d\udcdd" };
-      for (var idx = 0; idx < templates.length; idx++) {
-        (function(t) {
-          var btn = document.createElement("button");
-          btn.style.cssText = "display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border:none;border-radius:7px;background:none;color:#374151;font-size:13px;cursor:pointer;font-family:Segoe UI,sans-serif;text-align:left;line-height:1.3;";
-          var iconSpan = document.createElement("span");
-          iconSpan.style.cssText = "font-size:15px;width:22px;text-align:center;flex-shrink:0;";
-          iconSpan.textContent = cats[t.category] || "\ud83d\udcdd";
-          btn.appendChild(iconSpan);
-          btn.appendChild(document.createTextNode(t.title));
-          btn.onmouseenter = function() { btn.style.background = "#f3f4f6"; };
-          btn.onmouseleave = function() { btn.style.background = "none"; };
-          btn.onclick = function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            fillEbayTextArea(t.content);
-            if (popup.parentNode) popup.remove();
-            document.removeEventListener("mousedown", closePopup, true);
-          };
-          popup.appendChild(btn);
-        })(templates[idx]);
-      }
-    }
-  });
-}
 
 /* ===== Start Session ===== */
+// Opens the widget and starts a session about the eBay conversation currently
+// open on screen (triggered by the ✦ FAB). Picks the latest customer (buyer)
+// message; falls back to the last message bubble.
+function startSessionFromOpenConversation() {
+  const bubbles = document.querySelectorAll(
+    ".app-conversation__message-bubble__message, .m2m-message-bubble, .message-bubble"
+  );
+  if (!bubbles.length) {
+    toggleWidget(true);
+    const msgContainer = document.getElementById("sm-messages");
+    msgContainer.innerHTML = "";
+    SM.chatHistory = [];
+    SM.latestCustomerMsg = "";
+    appendMessage("Açık bir mesaj konuşması bulunamadı. Bir eBay mesajını açıp tekrar deneyin.", "system");
+    document.getElementById("sm-input").focus();
+    return;
+  }
+
+  let target = null;
+  bubbles.forEach(node => {
+    const parent = node.closest(
+      ".app-conversation__message-bubble, .app-conversation__message, .m2m-message-container"
+    ) || node;
+    const cls = parent.className || "";
+    const isBuyer = cls.includes("grey") || cls.includes("buyer") || cls.includes("received") || cls.includes("incoming");
+    if (isBuyer && node.innerText.trim()) target = node;
+  });
+  if (!target) target = bubbles[bubbles.length - 1];
+
+  startSession(target);
+}
+
 function startSession(msgNode, overrideText = null, quickInstruction = null, triggerRufus = false) {
   toggleWidget(true);
   const msgContainer = document.getElementById("sm-messages");
@@ -573,16 +369,27 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   input.focus();
 }
 
-// Alexa flow is triggered from inside the SellerMind widget (not the eBay menu).
+// Alexa flow is triggered from inside the SellerMind widget.
 // It operates on the active session's customer message.
 function startAlexaFromWidget() {
   toggleWidget(true);
   if (!SM.latestCustomerMsg) {
-    appendMessage("Önce bir müşteri mesajı için 'AI Yanıt'a basın; ardından Alexa'ya sorabilirsiniz.", "system");
+    appendMessage("Önce sağ alttaki ✦ ile açık mesaj konuşmasını başlatın; ardından Alexa'ya sorabilirsiniz.", "system");
     document.getElementById("sm-input").focus();
     return;
   }
   runAlexaFlow();
+}
+
+// Product research triggered from inside the widget (next to Alexa).
+function startResearchFromWidget() {
+  toggleWidget(true);
+  if (!SM.latestCustomerMsg) {
+    appendMessage("Önce sağ alttaki ✦ ile açık mesaj konuşmasını başlatın; ardından ürün araştırabilirsiniz.", "system");
+    document.getElementById("sm-input").focus();
+    return;
+  }
+  startRufusResearch();
 }
 
 async function runAlexaFlow() {
@@ -1101,6 +908,3 @@ function escapeHTML(str) { const d = document.createElement("div"); d.textConten
 
 /* ===== Init ===== */
 injectWidget();
-const ebayObserver = new MutationObserver(() => injecteBayButtons());
-ebayObserver.observe(document.body, { childList: true, subtree: true });
-injecteBayButtons();

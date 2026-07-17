@@ -104,7 +104,7 @@
 
 /* ===== Widget Actions (Alexa, etc.) ===== */
 #sm-widget-actions {
-  display: flex; gap: 6px; padding: 8px 12px;
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px;
   border-bottom: 1px solid var(--bd2); background: var(--bg);
 }
 .sm-widget-action {
