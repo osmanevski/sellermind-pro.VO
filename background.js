@@ -79,12 +79,15 @@ async function startProductResearch(request, sender) {
   try {
     const settings = await getSettings();
     let asin = null;
+    let matchSource = null;
 
     if (settings.easyncStoreId) {
       asin = await findAsinFromEasync(settings.easyncStoreId, request.title);
+      if (asin) matchSource = "easync";
     }
     if (!asin) {
       asin = await findAsinFromAmazonSearch(request.title);
+      if (asin) matchSource = "amazon-search";
     }
     if (!asin) {
       sendToEbay({ answer: null, error: "Amazon'da ürün bulunamadı." });
@@ -92,12 +95,13 @@ async function startProductResearch(request, sender) {
       return;
     }
 
+    const url = `https://www.amazon.com/dp/${asin}`;
     const productData = await scrapeAmazonProduct(asin);
 
     if (productData) {
-      sendToEbay({ answer: productData, source: "scrape" });
+      sendToEbay({ answer: productData, asin, url, source: matchSource });
     } else {
-      sendToEbay({ answer: null, error: "Ürün bilgisi alınamadı." });
+      sendToEbay({ answer: null, asin, url, source: matchSource, error: "Ürün bilgisi kazınamadı; yine de Amazon sayfası eşleştirildi." });
     }
     cleanupFlow();
 

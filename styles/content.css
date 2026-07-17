@@ -172,6 +172,15 @@
 }
 .sm-instruction-chip:hover { border-color: var(--ac); color: var(--ac); background: var(--ac-bg); }
 
+/* ===== Amazon Match Link ===== */
+.sm-amazon-link {
+  display: inline-block; margin-top: 6px;
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--ac); color: #fff; text-decoration: none;
+  font-size: 11.5px; font-weight: 600; transition: background .15s;
+}
+.sm-amazon-link:hover { background: var(--ac2); }
+
 /* ===== Char Count ===== */
 .sm-char-info { font-size: 10px; color: var(--tx3); margin-top: 6px; text-align: right; }
 .sm-over { color: var(--err); font-weight: 600; }

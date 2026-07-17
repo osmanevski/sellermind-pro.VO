@@ -1032,9 +1032,33 @@ function handleRufusResult(data) {
   const progress = document.getElementById("sm-rufus-progress");
   if (progress) progress.remove();
 
+  // Show the matched Amazon product page as a clickable link (via Easync ASIN match)
+  if (data.url && data.asin) {
+    const container = document.getElementById("sm-messages");
+    const linkDiv = document.createElement("div");
+    linkDiv.className = "sm-msg sm-sys";
+    const srcLabel = data.source === "easync" ? "Easync mağaza eşleşmesi" : "Amazon araması";
+    const info = document.createElement("div");
+    info.textContent = `🛒 Eşleşen Amazon ürünü (${srcLabel}) · ASIN: ${data.asin}`;
+    const a = document.createElement("a");
+    a.href = data.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.className = "sm-amazon-link";
+    a.textContent = "Amazon'da Aç ↗";
+    linkDiv.appendChild(info);
+    linkDiv.appendChild(a);
+    container.appendChild(linkDiv);
+    container.scrollTop = container.scrollHeight;
+  }
+
   if (data.error || !data.answer) {
-    appendMessage(`⚠️ Araştırma başarısız: ${data.error || "Veri alınamadı"}`, "system");
-    appendMessage("Yanıt oluşturulmadı. Nasıl ilerlemek istediğinizi yazın.", "system");
+    if (data.url) {
+      appendMessage("Ürün bilgisi kazınamadı; yukarıdaki Amazon sayfasını açıp inceleyebilir veya Alexa'ya sorabilirsin.", "system");
+    } else {
+      appendMessage(`⚠️ Araştırma başarısız: ${data.error || "Veri alınamadı"}`, "system");
+      appendMessage("Yanıt oluşturulmadı. Nasıl ilerlemek istediğinizi yazın.", "system");
+    }
     document.getElementById("sm-input").focus();
     return;
   }
