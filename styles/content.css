@@ -282,6 +282,9 @@
 #sm-fab:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(37,99,235,.45); }
 #sm-fab.hidden { display: none; }
 
+/* Hidden outside a messaging context (only Messages tab + Message Buyer window) */
+#sm-fab.sm-ctx-off, #sellermind-widget.sm-ctx-off { display: none !important; }
+
 /* ===== Pulse Animation ===== */
 .sm-pulse { animation: sm-pulse 2s infinite; }
 @keyframes sm-pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }

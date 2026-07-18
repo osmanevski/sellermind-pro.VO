@@ -75,7 +75,8 @@ function injectWidget() {
   const fab = document.createElement("button");
   fab.id = "sm-fab";
   fab.innerHTML = "✦";
-  fab.title = "SellerMind Pro (Alt+S)";
+  fab.title = "SellerMindPro.VO (Alt+S)";
+  fab.classList.add("sm-ctx-off"); // hidden until we confirm a messaging context
   document.body.appendChild(fab);
 
   initModelSelector();
@@ -906,5 +907,43 @@ function handleRufusResult(data) {
 
 function escapeHTML(str) { const d = document.createElement("div"); d.textContent = str; return d.innerHTML; }
 
+/* ===== Context Gating =====
+   Only show the widget/FAB where a seller actually messages a buyer:
+   the Messages tab conversation, and the "Message Buyer" compose window
+   opened from an order. Everything else on ebay.com stays clean. */
+function inMessagingContext() {
+  const url = location.href;
+  if (/mesg\.ebay\.com|\/mesg\/|ViewMessages|myebay\/[^?#]*message|\/sh\/[^?#]*message/i.test(url)) return true;
+  return !!document.querySelector(
+    ".app-conversation__message-bubble__message, .m2m-message-bubble, .message-bubble, " +
+    "#imageupload__sendmessage--textbox, #imageupload__send--button, .m2m-send-btn"
+  );
+}
+
+function syncSellerMindVisibility() {
+  const fab = document.getElementById("sm-fab");
+  const widget = document.getElementById("sellermind-widget");
+  if (!fab || !widget) return;
+  if (inMessagingContext()) {
+    fab.classList.remove("sm-ctx-off");
+    widget.classList.remove("sm-ctx-off");
+  } else {
+    // Don't yank a widget the seller currently has open.
+    if (widget.classList.contains("sm-visible")) return;
+    fab.classList.add("sm-ctx-off");
+    widget.classList.add("sm-ctx-off");
+  }
+}
+
+let smSyncTimer = null;
+function scheduleSellerMindSync() {
+  if (smSyncTimer) return;
+  smSyncTimer = setTimeout(() => { smSyncTimer = null; syncSellerMindVisibility(); }, 400);
+}
+
 /* ===== Init ===== */
 injectWidget();
+syncSellerMindVisibility();
+// eBay is a SPA; the Message Buyer window opens as a DOM change, so re-check on mutations.
+new MutationObserver(scheduleSellerMindSync).observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener("popstate", scheduleSellerMindSync);
