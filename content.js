@@ -54,8 +54,9 @@ function injectWidget() {
       <select id="sm-model-select" title="Bu yanıt için kullanılacak yapay zeka modeli"></select>
     </div>
     <div id="sm-widget-actions">
-      <button class="sm-widget-action" id="sm-btn-alexa" title="Müşterinin sorusunu Alexa'ya sorulacak bağımsız soruya çevir">🔊 Alexa'ya Sor</button>
+      <button class="sm-widget-action" id="sm-btn-templates" title="Hazır şablonlardan birini eBay mesaj kutusuna ekle">📋 Şablonlar</button>
       <button class="sm-widget-action" id="sm-btn-research" title="Açık mesajın ürününü Easync/Amazon üzerinden araştır">🔍 Ürün Araştır</button>
+      <button class="sm-widget-action" id="sm-btn-alexa" title="Müşterinin sorusunu Alexa'ya sorulacak bağımsız soruya çevir">🔊 Alexa'ya Sor</button>
     </div>
     <div id="sm-messages"></div>
     <div id="sm-input-area">
@@ -159,6 +160,7 @@ function bindEvents() {
 
   document.getElementById("sm-btn-alexa").addEventListener("click", startAlexaFromWidget);
   document.getElementById("sm-btn-research").addEventListener("click", startResearchFromWidget);
+  document.getElementById("sm-btn-templates").addEventListener("click", (e) => openTemplatePicker(e.currentTarget));
 
   document.getElementById("sm-btn-theme").addEventListener("click", () => {
     SM.isDark = !SM.isDark;
@@ -355,14 +357,11 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   SM.currentSentiment = sentiment;
   updateContextBar(sentiment, orderInfo);
 
-  appendMessage(`Müşteri mesajı:\n${SM.latestCustomerMsg}`, "system");
-
   if (triggerRufus) {
     startRufusResearch();
     return;
   }
 
-  appendMessage("Nasıl yanıtlamamı istediğinizi yazın. Siz talimat vermeden taslak oluşturulmayacak.", "system");
   appendInstructionStarters();
   const input = document.getElementById("sm-input");
   input.value = quickInstruction || "";
@@ -427,10 +426,12 @@ function appendInstructionStarters() {
     const button = document.createElement("button");
     button.className = "sm-instruction-chip";
     button.textContent = label;
+    // Clicking a quick instruction reads the whole conversation (already in the
+    // system prompt) and generates a draft according to that instruction.
     button.addEventListener("click", () => {
-      const input = document.getElementById("sm-input");
-      input.value = instruction;
-      input.focus();
+      appendMessage(label, "user");
+      SM.chatHistory.push({ role: "user", content: instruction });
+      requestAI();
     });
     guide.appendChild(button);
   });
@@ -788,6 +789,100 @@ function fillEbayTextArea(text) {
   }
 }
 
+/* ===== Templates ===== */
+// Popup anchored to a button (the widget "📋 Şablonlar" or the eBay-compose 📋);
+// selecting a template inserts it straight into the eBay message box.
+function openTemplatePicker(anchorEl) {
+  const existing = document.getElementById("sm-tpl-popup");
+  if (existing) { existing.remove(); return; } // toggle off
+
+  chrome.storage.local.get(["templates"], (data) => {
+    const templates = data.templates || [];
+    const popup = document.createElement("div");
+    popup.id = "sm-tpl-popup";
+    popup.className = "sm-tpl-popup";
+
+    const hdr = document.createElement("div");
+    hdr.className = "sm-tpl-popup-hdr";
+    hdr.textContent = "Şablonlar";
+    popup.appendChild(hdr);
+
+    if (!templates.length) {
+      const empty = document.createElement("div");
+      empty.className = "sm-tpl-popup-empty";
+      empty.textContent = "Henüz şablon yok. Ayarlar → Şablon Yöneticisi'nden ekleyin.";
+      popup.appendChild(empty);
+    } else {
+      const cats = { refund: "💰", shipping: "📦", "return": "↩️", defective: "⚠️", general: "📝" };
+      templates.forEach((t) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "sm-tpl-popup-item";
+        const icon = document.createElement("span");
+        icon.className = "sm-tpl-popup-icon";
+        icon.textContent = cats[t.category] || "📝";
+        item.appendChild(icon);
+        item.appendChild(document.createTextNode(t.title || "Şablon"));
+        item.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          fillEbayTextArea(t.content || "");
+          popup.remove();
+        });
+        popup.appendChild(item);
+      });
+    }
+
+    document.body.appendChild(popup);
+
+    // Position above the anchor; drop below if there isn't room.
+    const r = anchorEl.getBoundingClientRect();
+    let top = r.top - popup.offsetHeight - 8;
+    if (top < 8) top = r.bottom + 8;
+    let left = r.left;
+    if (left + popup.offsetWidth > window.innerWidth - 8) left = window.innerWidth - popup.offsetWidth - 8;
+    if (left < 8) left = 8;
+    popup.style.top = top + "px";
+    popup.style.left = left + "px";
+
+    setTimeout(() => {
+      const onDoc = (e) => {
+        if (!popup.contains(e.target) && e.target !== anchorEl && !anchorEl.contains(e.target)) {
+          popup.remove();
+          document.removeEventListener("mousedown", onDoc, true);
+        }
+      };
+      document.addEventListener("mousedown", onDoc, true);
+    }, 50);
+  });
+}
+
+// Inject a small 📋 button next to eBay's own message send button/compose box.
+function injectEbayTemplateButton() {
+  if (document.getElementById("sm-ebay-tpl-btn")) return;
+  const sendBtn = document.querySelector("#imageupload__send--button, .m2m-send-btn, button[aria-label*='Send' i]");
+  const textarea = document.querySelector('#imageupload__sendmessage--textbox, textarea[placeholder*="message" i], textarea[name*="message" i]');
+  if (!sendBtn && !textarea) return;
+
+  const btn = document.createElement("button");
+  btn.id = "sm-ebay-tpl-btn";
+  btn.type = "button";
+  btn.className = "sm-ebay-tpl-btn";
+  btn.textContent = "📋";
+  btn.title = "SellerMind Şablonları";
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openTemplatePicker(btn);
+  });
+
+  if (sendBtn && sendBtn.parentNode) {
+    sendBtn.parentNode.insertBefore(btn, sendBtn);
+  } else if (textarea && textarea.parentNode) {
+    textarea.parentNode.insertBefore(btn, textarea);
+  }
+}
+
 function quickReplyLastMessage() {
   const msgs = document.querySelectorAll(".app-conversation__message-bubble__message, .m2m-message-bubble");
   if (msgs.length > 0) startSession(msgs[msgs.length - 1]);
@@ -927,11 +1022,14 @@ function syncSellerMindVisibility() {
   if (inMessagingContext()) {
     fab.classList.remove("sm-ctx-off");
     widget.classList.remove("sm-ctx-off");
+    injectEbayTemplateButton();
   } else {
     // Don't yank a widget the seller currently has open.
     if (widget.classList.contains("sm-visible")) return;
     fab.classList.add("sm-ctx-off");
     widget.classList.add("sm-ctx-off");
+    document.getElementById("sm-ebay-tpl-btn")?.remove();
+    document.getElementById("sm-tpl-popup")?.remove();
   }
 }
 
