@@ -17,14 +17,14 @@
 
 /* ===== Dark Theme ===== */
 #sellermind-widget.sm-dark {
-  --bg: #1a1d23; --bg2: #22262e; --bg3: #2a2f38;
-  --tx: #f0f1f3; --tx2: #9ca3af; --tx3: #6b7280;
-  --bd: #333842; --bd2: #2a2f38;
-  --ac: #3b82f6; --ac2: #60a5fa; --ac-bg: rgba(59,130,246,.1); --ac-glow: rgba(59,130,246,.18);
-  --ok: #10b981; --ok-bg: rgba(16,185,129,.1);
-  --warn: #f59e0b; --warn-bg: rgba(245,158,11,.1);
-  --err: #ef4444; --err-bg: rgba(239,68,68,.1);
-  --sh1: 0 1px 3px rgba(0,0,0,.2); --sh2: 0 4px 16px rgba(0,0,0,.3); --sh3: 0 12px 40px rgba(0,0,0,.4);
+  --bg: #0A0B0D; --bg2: #1B1C20; --bg3: #292A2F;
+  --tx: #F1F2F4; --tx2: #A9ABB2; --tx3: #797B82;
+  --bd: #47484F; --bd2: #33343A;
+  --ac: #2563EB; --ac2: #1D4ED8; --ac-bg: rgba(37,99,235,.16); --ac-glow: rgba(96,165,250,.30);
+  --ok: #10b981; --ok-bg: rgba(16,185,129,.12);
+  --warn: #f59e0b; --warn-bg: rgba(245,158,11,.12);
+  --err: #D9646F; --err-bg: rgba(141,43,53,.22);
+  --sh1: 0 1px 3px rgba(0,0,0,.4); --sh2: 0 4px 16px rgba(0,0,0,.5); --sh3: 0 12px 40px rgba(0,0,0,.6);
 }
 
 /* ===== Widget ===== */

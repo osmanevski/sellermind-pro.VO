@@ -170,11 +170,10 @@ function bindEvents() {
   });
 
   chrome.storage.local.get(["smDarkMode"], (d) => {
-    if (d.smDarkMode) {
-      SM.isDark = true;
-      widget.classList.add("sm-dark");
-      document.getElementById("sm-btn-theme").textContent = "☀️";
-    }
+    const dark = d.smDarkMode !== false; // default to dark (brand palette)
+    SM.isDark = dark;
+    widget.classList.toggle("sm-dark", dark);
+    document.getElementById("sm-btn-theme").textContent = dark ? "☀️" : "🌙";
   });
 
   const send = () => {

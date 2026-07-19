@@ -2,14 +2,14 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Şablon Yöneticisi — SellerMind Pro</title>
+  <title>Şablon Yöneticisi — SellerMindPro.VO</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     :root {
-      --bg:#fff; --bg2:#f8f9fb; --bg3:#f1f3f6;
-      --tx:#1a1d23; --tx2:#5f6672; --tx3:#9ca3af;
-      --bd:#e5e7eb; --ac:#2563eb; --ac2:#1d4ed8; --ac-bg:#eff4ff;
-      --ok:#059669; --r:8px; --font:'Segoe UI',-apple-system,sans-serif;
+      --bg:#1B1C20; --bg2:#0A0B0D; --bg3:#292A2F;
+      --tx:#F1F2F4; --tx2:#A9ABB2; --tx3:#797B82;
+      --bd:#47484F; --ac:#2563EB; --ac2:#1D4ED8; --ac-bg:rgba(37,99,235,.16);
+      --ok:#34d399; --r:8px; --font:'Segoe UI',-apple-system,sans-serif;
     }
     body { font-family:var(--font); background:var(--bg2); color:var(--tx); min-height:100vh; margin:0; }
 
@@ -60,7 +60,7 @@
       display:flex; align-items:center; gap:8px; padding:10px 14px;
       border-bottom:1px solid var(--bg3); cursor:pointer; transition:background .1s;
     }
-    .tpl-item:hover { background:var(--bg2); }
+    .tpl-item:hover { background:var(--bg3); }
     .tpl-item.active { background:var(--ac-bg); border-left:3px solid var(--ac); }
     .tpl-icon { font-size:16px; }
     .tpl-info { flex:1; min-width:0; }
@@ -71,7 +71,7 @@
       background:none; color:var(--tx3); cursor:pointer; font-size:14px;
       display:flex; align-items:center; justify-content:center;
     }
-    .tpl-del:hover { background:#fef2f2; color:#dc2626; }
+    .tpl-del:hover { background:rgba(141,43,53,.25); color:#E27682; }
     .empty-msg { padding:24px; text-align:center; color:var(--tx3); font-size:12px; }
 
     /* Editor */
