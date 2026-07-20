@@ -191,7 +191,7 @@ function bindEvents() {
         content: `The seller pasted the research answer below:\n---\n${text}\n---\nUse this as internal product information. Now create an accurate customer-facing reply to the customer's original question. Never mention Alexa, Amazon, research, or an external source. Use [[DRAFT]] mode.`
       });
       input.placeholder = "Müşteri yanıtı hazırlanıyor...";
-      requestAI().finally(() => {
+      requestAI("draft").finally(() => {
         SM.alexaStage = null;
         input.placeholder = "Taslağı düzenle veya bana bir soru sor...";
       });
@@ -199,7 +199,7 @@ function bindEvents() {
     }
 
     SM.chatHistory.push({ role: "user", content: text });
-    requestAI();
+    requestAI(detectRequestedMode(text));
   };
 
   document.getElementById("sm-send").addEventListener("click", send);
@@ -250,7 +250,7 @@ function bindEvents() {
       role: "user",
       content: `In the current draft, change this specific part: "${SM.selectedText}". Instruction: ${instruction || "Rephrase it differently"}. Rewrite the FULL message with this change applied. Output ONLY the final customer message.`
     });
-    requestAI();
+    requestAI("draft");
   });
 
   document.getElementById("sm-edit-input").addEventListener("keydown", (e) => {
@@ -398,7 +398,7 @@ async function runAlexaFlow() {
     content: `Use [[ASSISTANT]] mode. Rewrite the customer's original product question as one clear, standalone question that I can read or paste directly to Alexa. Preserve every relevant product detail from the conversation. Do not answer the question. Output only the question, in the same language as the customer's question.`
   });
 
-  const result = await requestAI();
+  const result = await requestAI("assistant");
   if (!result) return;
   SM.alexaStage = "awaiting_answer";
   appendMessage("Alexa'nın verdiği yanıtı aşağıdaki kutuya yapıştırın. SellerMind bunu müşteriye uygun bir mesaja dönüştürecek.", "system");
@@ -429,8 +429,11 @@ function appendInstructionStarters() {
     // system prompt) and generates a draft according to that instruction.
     button.addEventListener("click", () => {
       appendMessage(label, "user");
-      SM.chatHistory.push({ role: "user", content: instruction });
-      requestAI();
+      SM.chatHistory.push({
+        role: "user",
+        content: `Use [[DRAFT]] mode. The customer's latest message and full conversation are already provided in the system context. ${instruction} Create the customer-facing reply now; do not ask for the customer message.`
+      });
+      requestAI("draft");
     });
     guide.appendChild(button);
   });
@@ -479,7 +482,7 @@ function updateContextBar(sentiment, extra = "") {
 }
 
 /* ===== AI Request ===== */
-async function requestAI() {
+async function requestAI(expectedMode = null) {
   showTyping();
   try {
     const settings = await getSettings();
@@ -487,8 +490,39 @@ async function requestAI() {
     const toneInstructions = getToneInstructions();
     const systemPrompt = buildSystemPrompt(settings, greeting, toneInstructions);
     const messages = SM.chatHistory.map(m => ({ role: m.role, content: m.content }));
-    const rawReply = await callClaude(systemPrompt, messages, 0.25, 600);
-    const result = parseAIResponse(rawReply);
+    if (expectedMode === "draft") {
+      messages.push({
+        role: "user",
+        content: `MANDATORY RESPONSE MODE: [[DRAFT]]. The customer message is already available as LATEST MESSAGE in the system prompt: "${SM.latestCustomerMsg}". Write the customer-facing reply now. Never say that you are waiting for the customer message.`
+      });
+    } else if (expectedMode === "assistant") {
+      messages.push({
+        role: "user",
+        content: "MANDATORY RESPONSE MODE: [[ASSISTANT]]. Answer the seller directly; do not create a customer-facing draft."
+      });
+    }
+
+    let rawReply = await callClaude(systemPrompt, messages, 0.25, 600);
+    let result = parseAIResponse(rawReply);
+
+    const wrongMode = expectedMode && result.mode !== expectedMode;
+    const missingContextReply = expectedMode === "draft" && /müşteri mesajını (bekliyorum|gönder)|customer message.*(wait|send|provide)/i.test(result.text);
+    if (wrongMode || missingContextReply) {
+      const retryMessages = [
+        ...messages,
+        { role: "assistant", content: rawReply },
+        {
+          role: "user",
+          content: expectedMode === "draft"
+            ? `That response was incorrect. Use [[DRAFT]] mode and answer this customer message now: "${SM.latestCustomerMsg}". Follow the seller's preceding instruction and output the complete customer-facing reply.`
+            : "That response used the wrong mode. Use [[ASSISTANT]] and answer the seller directly."
+        }
+      ];
+      rawReply = await callClaude(systemPrompt, retryMessages, 0.2, 600);
+      result = parseAIResponse(rawReply, expectedMode);
+    } else if (expectedMode) {
+      result.mode = expectedMode;
+    }
     removeTyping();
     SM.chatHistory.push({ role: "assistant", content: `[[${result.mode.toUpperCase()}]]\n${result.text}` });
     appendMessage(result.text, "ai", result.mode === "draft");
@@ -512,12 +546,12 @@ async function requestAI() {
   }
 }
 
-function parseAIResponse(rawReply) {
+function parseAIResponse(rawReply, forcedMode = null) {
   const raw = String(rawReply || "").trim();
   const marker = raw.match(/^\[\[(DRAFT|ASSISTANT)\]\]\s*/i);
   if (marker) {
     return {
-      mode: marker[1].toLowerCase(),
+      mode: forcedMode || marker[1].toLowerCase(),
       text: raw.slice(marker[0].length).trim()
     };
   }
@@ -525,7 +559,18 @@ function parseAIResponse(rawReply) {
   // Safe fallback for models that ignore the requested marker.
   const lastUserMessage = [...SM.chatHistory].reverse().find(m => m.role === "user")?.content || "";
   const asksAssistant = /\?|\b(neden|nasıl|nereden|niye|ne demek|açıklar mısın|anladın|düşünüyorsun)\b/i.test(lastUserMessage);
-  return { mode: asksAssistant ? "assistant" : "draft", text: raw };
+  return { mode: forcedMode || (asksAssistant ? "assistant" : "draft"), text: raw };
+}
+
+function detectRequestedMode(text) {
+  const value = String(text || "").trim().toLowerCase();
+  const draftIntent = /\b(yanıtla|cevapla|yaz|oluştur|hazırla|kısalt|uzat|yeniden|düzenle|çevir|aktar|reply|respond)\b|yanıt ver|cevap ver|müşteriye|daha (empatik|resmi|samimi|kısa)|indirim ekle|iade sunma/i;
+  const assistantIntent = /\?|\b(neden|niye|nasıl|nereden|ne demek|açıklar mısın|anladın|düşünüyorsun|sence)\b|doğru mu|bana açıkla/i;
+  if (draftIntent.test(value)) return "draft";
+  if (assistantIntent.test(value)) return "assistant";
+  // In an active customer session, an imperative is more likely a drafting
+  // instruction. Direct questions are caught above and stay in assistant mode.
+  return "draft";
 }
 
 function callClaude(systemPrompt, messages, temperature = 0.3, maxTokens = 600) {
@@ -703,7 +748,7 @@ function appendMessage(text, sender, isDraft = false) {
       regenBtn.innerHTML = "🔄 Yeniden";
       regenBtn.addEventListener("click", () => {
         SM.chatHistory.push({ role: "user", content: "Generate a different version. Change phrasing and approach but keep same intent." });
-        requestAI();
+        requestAI("draft");
       });
 
       actions.appendChild(insertBtn);
@@ -740,7 +785,7 @@ function appendMessage(text, sender, isDraft = false) {
         chip.addEventListener("click", () => {
           appendMessage(r, "user");
           SM.chatHistory.push({ role: "user", content: r });
-          requestAI();
+          requestAI("draft");
         });
         chips.appendChild(chip);
       });
