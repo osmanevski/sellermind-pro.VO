@@ -198,8 +198,12 @@ function bindEvents() {
       return;
     }
 
+    // Free-form typed input is a conversation with the assistant: don't force a
+    // mode. The model chooses [[DRAFT]] vs [[ASSISTANT]] from the seller's words
+    // (see the system prompt), and parseAIResponse defaults to ASSISTANT when no
+    // marker is returned. Quick-instruction chips still force DRAFT explicitly.
     SM.chatHistory.push({ role: "user", content: text });
-    requestAI(detectRequestedMode(text));
+    requestAI();
   };
 
   document.getElementById("sm-send").addEventListener("click", send);
@@ -364,7 +368,7 @@ function startSession(msgNode, overrideText = null, quickInstruction = null, tri
   appendInstructionStarters();
   const input = document.getElementById("sm-input");
   input.value = quickInstruction || "";
-  input.placeholder = "Örn: Kibarca gecikme için özür dile ve 3 gün beklemesini söyle";
+  input.placeholder = "Bana soru sor ya da taslak iste (örn: kibarca gecikme için özür dile)";
   input.focus();
 }
 
@@ -556,21 +560,13 @@ function parseAIResponse(rawReply, forcedMode = null) {
     };
   }
 
-  // Safe fallback for models that ignore the requested marker.
+  // Fallback for models that ignore the requested marker. If a caller forced a
+  // mode, honor it. Otherwise (free-form typed input) default to ASSISTANT so
+  // the seller's chat isn't turned into a customer draft; only an explicit
+  // drafting phrase flips it to draft.
   const lastUserMessage = [...SM.chatHistory].reverse().find(m => m.role === "user")?.content || "";
-  const asksAssistant = /\?|\b(neden|nasıl|nereden|niye|ne demek|açıklar mısın|anladın|düşünüyorsun)\b/i.test(lastUserMessage);
-  return { mode: forcedMode || (asksAssistant ? "assistant" : "draft"), text: raw };
-}
-
-function detectRequestedMode(text) {
-  const value = String(text || "").trim().toLowerCase();
-  const draftIntent = /\b(yanıtla|cevapla|yaz|oluştur|hazırla|kısalt|uzat|yeniden|düzenle|çevir|aktar|reply|respond)\b|yanıt ver|cevap ver|müşteriye|daha (empatik|resmi|samimi|kısa)|indirim ekle|iade sunma/i;
-  const assistantIntent = /\?|\b(neden|niye|nasıl|nereden|ne demek|açıklar mısın|anladın|düşünüyorsun|sence)\b|doğru mu|bana açıkla/i;
-  if (draftIntent.test(value)) return "draft";
-  if (assistantIntent.test(value)) return "assistant";
-  // In an active customer session, an imperative is more likely a drafting
-  // instruction. Direct questions are caught above and stay in assistant mode.
-  return "draft";
+  const wantsDraft = /\b(yanıtla|cevapla|kısalt|uzat|reply|respond)\b|yeniden yaz|müşteriye (yanıt|cevap|mesaj|yaz)|taslak (yaz|oluştur|hazırla)|daha (empatik|resmi|samimi|kısa|sert|yumuşak) (yaz|yap)|indirim ekle|iade (sun|teklif)/i.test(lastUserMessage);
+  return { mode: forcedMode || (wantsDraft ? "draft" : "assistant"), text: raw };
 }
 
 function callClaude(systemPrompt, messages, temperature = 0.3, maxTokens = 600) {
