@@ -81,19 +81,20 @@ async function startProductResearch(request, sender) {
     let asin = null;
     let matchSource = null;
 
-    // Prefer the eBay item ID for the Easync lookup (exact single-listing match);
-    // fall back to the title only for Amazon search.
-    const searchKey = request.itemId || request.title;
-    if (settings.easyncStoreId && searchKey) {
-      asin = await findAsinFromEasync(settings.easyncStoreId, searchKey);
-      if (asin) matchSource = "easync";
+    // Primary: instant lookup of the eBay item ID in the uploaded CSV product
+    // list (Target Product Id -> Source Product Id/ASIN). No tab, no Easync.
+    const productMap = settings.productMap || {};
+    if (request.itemId && productMap[request.itemId]) {
+      asin = String(productMap[request.itemId]).toUpperCase();
+      matchSource = "csv";
     }
+    // Fallback: Amazon search by title when the item isn't in the CSV.
     if (!asin && request.title) {
       asin = await findAsinFromAmazonSearch(request.title);
       if (asin) matchSource = "amazon-search";
     }
     if (!asin) {
-      sendToEbay({ answer: null, error: "Amazon'da ürün bulunamadı." });
+      sendToEbay({ answer: null, error: "Ürün listesinde (CSV) eşleşme yok ve Amazon aramasında bulunamadı." });
       cleanupFlow();
       return;
     }
@@ -121,51 +122,6 @@ function sendToEbay(data) {
       action: "rufusResult", ...data, question: researchFlow?.question
     });
   } catch(e) {}
-}
-
-// ===== Easync: Find ASIN by eBay item ID (inline script) =====
-function findAsinFromEasync(storeId, searchKey) {
-  return new Promise(resolve => {
-    const url = `https://my.easync.io/stores/${storeId}/listings?listingsFilter=active&searchString=${encodeURIComponent(searchKey)}`;
-    chrome.tabs.create({ url, active: false }, tab => {
-      researchFlow.tabIds.push(tab.id);
-      waitForTab(tab.id, () => {
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: async function() {
-            const find = () => {
-              // 1) Explicit Amazon/amzdrop product links (/dp/<ASIN>)
-              for (const a of document.querySelectorAll('a[href*="/dp/"]')) {
-                const m = (a.href || '').match(/\/dp\/([A-Z0-9]{10})/i);
-                if (m) return m[1].toUpperCase();
-              }
-              // 2) data-asin attribute
-              const da = document.querySelector('[data-asin]');
-              const dav = da && da.getAttribute('data-asin');
-              if (dav && /^[A-Z0-9]{10}$/i.test(dav)) return dav.toUpperCase();
-              // 3) The Source column shows the ASIN as text (e.g. B0FKGTVG6S).
-              //    Match a B0-prefixed 10-char ASIN so the 12-digit eBay item ID
-              //    is never picked up by mistake.
-              const bodyText = document.body ? document.body.innerText : '';
-              const bm = bodyText.match(/\bB0[0-9A-Z]{8}\b/);
-              if (bm) return bm[0];
-              return null;
-            };
-            // Easync loads the listing rows asynchronously — poll up to ~6s.
-            for (let i = 0; i < 20; i++) {
-              const r = find();
-              if (r) return r;
-              await new Promise(res => setTimeout(res, 300));
-            }
-            return null;
-          }
-        }, results => {
-          safeCloseTab(tab.id);
-          resolve(results?.[0]?.result || null);
-        });
-      }, 8000);
-    });
-  });
 }
 
 // ===== Amazon Search: Find ASIN (inline script) =====

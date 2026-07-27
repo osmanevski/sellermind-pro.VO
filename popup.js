@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Load settings
-  const fields = ["apiKey", "anthropicApiKey", "storeName", "repName", "easyncStoreId", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
+  const fields = ["apiKey", "anthropicApiKey", "storeName", "repName", "shippingPolicy", "handlingPolicy", "returnPolicy", "discountLimit"];
   
   chrome.storage.local.get(fields, (data) => {
     fields.forEach(f => {
@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Save settings
   document.getElementById("saveSettings").addEventListener("click", () => {
     const data = {};
-    ["apiKey", "anthropicApiKey", "storeName", "repName", "easyncStoreId"].forEach(f => {
+    ["apiKey", "anthropicApiKey", "storeName", "repName"].forEach(f => {
       const val = document.getElementById(f)?.value?.trim();
       if (val) data[f] = val;
     });
@@ -91,6 +91,98 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
     reader.readAsText(file);
+  });
+
+  // ===== Product list CSV (eBay item id -> Amazon ASIN) =====
+  const productMapInfo = document.getElementById("productMapInfo");
+
+  function renderProductMapInfo() {
+    chrome.storage.local.get(["productMapMeta"], (d) => {
+      const m = d.productMapMeta;
+      if (m && m.count) {
+        const when = m.importedAt ? new Date(m.importedAt).toLocaleDateString("tr-TR") : "";
+        productMapInfo.textContent = `✅ ${m.count} ürün eşlemesi yüklü${when ? " · " + when : ""}.`;
+      } else {
+        productMapInfo.textContent = "Henüz ürün listesi yüklenmedi.";
+      }
+    });
+  }
+  renderProductMapInfo();
+
+  // Minimal RFC-4180 CSV parser: handles quoted fields, embedded commas,
+  // escaped "" quotes, CRLF, and a leading BOM.
+  function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  document.getElementById("loadCsvBtn").addEventListener("click", () => {
+    document.getElementById("productCsv").click();
+  });
+
+  document.getElementById("productCsv").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    productMapInfo.textContent = "⏳ CSV işleniyor...";
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const rows = parseCSV(String(ev.target.result));
+        if (!rows.length) throw new Error("boş");
+        const header = rows[0].map(h => h.trim().toLowerCase());
+        const asinIdx = header.indexOf("source product id");
+        const ebayIdx = header.indexOf("target product id");
+        if (asinIdx === -1 || ebayIdx === -1) {
+          productMapInfo.textContent = "❌ CSV başlıklarında 'Source Product Id' / 'Target Product Id' bulunamadı.";
+          return;
+        }
+        const map = {};
+        for (let r = 1; r < rows.length; r++) {
+          const asin = (rows[r][asinIdx] || "").trim().toUpperCase();
+          const ebayId = (rows[r][ebayIdx] || "").trim();
+          if (/^[A-Z0-9]{10}$/.test(asin) && /^\d{6,15}$/.test(ebayId)) map[ebayId] = asin;
+        }
+        const count = Object.keys(map).length;
+        if (!count) {
+          productMapInfo.textContent = "❌ Geçerli eBay no ↔ ASIN eşleşmesi bulunamadı.";
+          return;
+        }
+        chrome.storage.local.set({
+          productMap: map,
+          productMapMeta: { count, fileName: file.name, importedAt: Date.now() }
+        }, () => {
+          renderProductMapInfo();
+          showStatus("settingsStatus", `✅ ${count} ürün eşlemesi yüklendi!`, "ok");
+        });
+      } catch (err) {
+        productMapInfo.textContent = "❌ CSV okunamadı: " + (err.message || err);
+      } finally {
+        e.target.value = "";
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("clearCsvBtn").addEventListener("click", () => {
+    chrome.storage.local.remove(["productMap", "productMapMeta"], () => {
+      renderProductMapInfo();
+      showStatus("settingsStatus", "🗑️ Ürün listesi temizlendi.", "ok");
+    });
   });
 
   // Stats

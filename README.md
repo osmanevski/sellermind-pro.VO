@@ -35,7 +35,7 @@ SellerMindPro.VO, açık eBay konuşmasını okuyarak iki farklı şekilde yard�
 - **Hızlı yönergeler:** Kısa yanıt, empatik yaklaşım, politika açıklaması ve çözüm önerisi tek tıkla uygulanır.
 - **Konuşma bağlamı:** Açık eBay konuşmasındaki son müşteri mesajını ve önceki mesajları kullanır.
 - **Mağaza politikaları:** Kargo, hazırlık, iade ve tazminat kuralları taslaklara eklenir.
-- **Ürün araştırma:** Easync ilanından ASIN eşleştirme ve Amazon ürün sayfasından bilgi toplama.
+- **Ürün araştırma:** Yüklü CSV listesinden (eBay no ↔ Amazon ASIN) eşleştirme ve Amazon ürün sayfasından bilgi toplama.
 - **Alexa'ya Sor:** Müşteri sorusunu haricî asistana sorulabilecek bağımsız bir soruya dönüştüren manuel araştırma akışı.
 - **Hazır şablonlar:** Widget'tan veya eBay mesaj kutusunun yanındaki 📋 düğmesinden kullanılabilir.
 - **Taslak araçları:** eBay'e aktar, kopyala, yeniden oluştur, puanla ve hızlı rötuş seçenekleri.
@@ -55,7 +55,7 @@ SellerMind widget'ı konuşma bağlamını çıkarır
       │
       ├── Hızlı yönerge ─────► DRAFT ──────► Müşteriye gönderilecek taslak
       │
-      ├── Ürün Araştır ──────► Easync/Amazon bilgisi iç bağlama eklenir
+      ├── Ürün Araştır ──────► CSV eşlemesi + Amazon bilgisi iç bağlama eklenir
       │
       └── Alexa'ya Sor ──────► Manuel araştırma cevabı iç bağlama eklenir
 ```
@@ -93,7 +93,7 @@ Uzantı Chrome Web Store'da yayımlanmamıştır. **Paketlenmemiş uzantı** ola
 - Google Chrome veya Chromium tabanlı uyumlu bir tarayıcı
 - Git
 - OpenRouter ve/veya Anthropic API anahtarı
-- Ürün araştırması için isteğe bağlı Easync hesabı
+- Ürün araştırması için (opsiyonel) eBay no ↔ Amazon ASIN eşlemesi içeren bir CSV listesi
 
 ### 1. Depoyu klonlayın
 
@@ -131,7 +131,7 @@ Chrome araç çubuğundaki SellerMind simgesine tıklayın.
 - **Claude API Anahtarı:** [console.anthropic.com](https://console.anthropic.com/)
 - **Mağaza Adı:** Müşteri mesajının imzasında kullanılabilir.
 - **Temsilci Adı:** Yanıt kapanışında kullanılır.
-- **Easync Store ID:** Ürün araştırması için isteğe bağlıdır.
+- **Ürün Listesi CSV'si:** Ürün araştırması için (opsiyonel) — **Ürün Araştırma (CSV)** bölümünden yüklenir.
 
 İki API anahtarını birden girmek zorunda değilsiniz. Kullanacağınız sağlayıcının anahtarı yeterlidir.
 
@@ -197,30 +197,29 @@ API kullanımı ücretlidir. Ücretlendirme, kota ve veri saklama kuralları se�
 
 ## Ürün araştırma
 
+Ürün eşleştirme artık Easync'e canlı bağlanmaz; bir kez yüklediğin **CSV ürün listesi** üzerinden yerelde yapılır. Bu hem daha hızlıdır (arka planda sekme açılmaz) hem de Easync bağımlılığını kaldırır.
+
 **🔍 Ürün Araştır** akışı şu sırayla çalışır:
 
 1. Açık eBay konuşmasındaki ürün bağlantısından sayısal eBay item ID çıkarılır.
-2. Easync Store ID ayarlanmışsa ilanlar sayfasında item ID ile eşleşme aranır.
-3. Eşleşen satırdan Amazon ASIN'i alınır.
-4. Easync eşleşmesi yoksa ürün başlığıyla Amazon araması yapılır.
-5. Amazon ürün sayfasından başlık, fiyat, puan, özellikler, teknik bilgiler ve açıklama okunur.
-6. Bulunan ASIN için tıklanabilir **Amazon'da Aç** bağlantısı gösterilir.
-7. Toplanan bilgiler müşteriye gösterilmeden SellerMind'ın iç bağlamına eklenir.
-8. Satıcı bir yönerge verene kadar müşteri taslağı oluşturulmaz.
+2. Yüklü CSV eşlemesinde bu item ID (Target Product Id) aranır ve karşılığındaki Amazon ASIN'i (Source Product Id) anında alınır.
+3. Eşleşme yoksa ürün başlığıyla Amazon araması yapılır (yedek).
+4. `https://www.amazon.com/dp/<ASIN>` sayfasından başlık, fiyat, puan, özellikler, teknik bilgiler ve açıklama okunur.
+5. Bulunan ASIN için tıklanabilir **Amazon'da Aç** bağlantısı gösterilir.
+6. Toplanan bilgiler müşteriye gösterilmeden SellerMind'ın iç bağlamına eklenir.
+7. Satıcı bir yönerge verene kadar müşteri taslağı oluşturulmaz.
 
-### Easync Store ID nasıl bulunur?
+### CSV ürün listesi nasıl yüklenir?
 
-[my.easync.io](https://my.easync.io) üzerinde mağazanın ilanlar sayfasını açın:
+1. Easync / dropship panelinden ilanlarını CSV olarak dışa aktar. Dosyada en az şu sütunlar bulunmalı:
+   - `Target Product Id` — eBay ilan no'su
+   - `Source Product Id` — Amazon ASIN
+2. Uzantı ikonuna tıkla → **Ayarlar → Ürün Araştırma (CSV) → 📄 CSV Yükle** ve dosyayı seç.
+3. Eşleşen ürün sayısı gösterilir (ör. "✅ 7066 ürün eşlemesi yüklü").
 
-```text
-https://my.easync.io/stores/<STORE_ID>/listings
-```
+Eşleme `chrome.storage.local` içinde saklanır; her araştırmada anında okunur. Liste güncellendiğinde yeni CSV'yi tekrar yükle. **🗑️ Temizle** ile eşlemeyi silebilirsin. CSV yüklü değilse veya ürün listede yoksa, araştırma otomatik olarak Amazon başlık aramasına düşer.
 
-`<STORE_ID>` bölümünü uzantının Ayarlar ekranına girin.
-
-Easync kullanılacaksa aynı Chrome profilinde `my.easync.io` oturumunun açık olması gerekir. Easync Store ID girilmezse veya eşleşme bulunamazsa Amazon başlık araması devreye girer.
-
-> Bu özellik bir Amazon, Alexa veya Rufus API entegrasyonu değildir. Easync ve Amazon sayfalarının tarayıcı üzerinden okunmasına dayanır.
+> Bu özellik bir Amazon, Alexa veya Rufus API entegrasyonu değildir. Eşleştirme yerel CSV'den yapılır; ürün bilgisi Amazon ürün sayfasının tarayıcı üzerinden okunmasına dayanır.
 
 ## Alexa'ya Sor akışı
 
@@ -334,9 +333,9 @@ Yerel değişiklikleri silmek geri alınamaz. Ne yaptığınızı bilmiyorsanız
 
 ### Ürün bulunamıyor
 
-- Easync Store ID'nin doğru olduğunu kontrol edin.
-- Aynı Chrome profilinde Easync oturumunu açın.
-- eBay item ID ile Easync ilanının eşleştiğini kontrol edin.
+- Ayarlar → Ürün Araştırma (CSV) bölümünde bir listenin yüklü olduğunu kontrol edin.
+- CSV'de `Target Product Id` (eBay no) ve `Source Product Id` (ASIN) sütunlarının bulunduğundan emin olun.
+- İlgili eBay item ID'sinin CSV'de yer aldığını kontrol edin; yeni ilanlar için güncel CSV'yi tekrar yükleyin.
 - Amazon doğrulama veya bot kontrolü gösteriyorsa sayfa kazıma başarısız olabilir.
 - **Amazon'da Aç** bağlantısı oluştuysa ürünü elle doğrulayın.
 
@@ -353,11 +352,11 @@ Yerel değişiklikleri silmek geri alınamaz. Ne yaptığınızı bilmiyorsanız
 - API anahtarları dışa aktarılan yedek dosyasına eklenmez.
 - Uzantının ayrı bir SellerMind sunucusu veya veritabanı yoktur.
 - Model isteği sırasında müşteri mesajı, konuşma bağlamı, mağaza bilgileri ve ilgili politikalar seçilen API sağlayıcısına gönderilebilir.
-- Ürün araştırmasında Easync ve Amazon sayfaları arka plan sekmelerinde açılıp okunur.
+- Ürün araştırmasında eşleştirme yerel CSV'den yapılır; yalnızca Amazon ürün sayfası arka plan sekmesinde açılıp okunur.
 - SellerMind müşteri mesajını otomatik göndermez; son kontrol ve gönderme sorumluluğu satıcıdadır.
 - API anahtarlarını kaynak koduna, README'ye, Git deposuna veya ekran görüntülerine eklemeyin.
 
-Kullanımdan önce OpenRouter, Anthropic, eBay, Easync ve Amazon'un geçerli kullanım ve gizlilik koşullarını inceleyin.
+Kullanımdan önce OpenRouter, Anthropic, eBay ve Amazon'un geçerli kullanım ve gizlilik koşullarını inceleyin.
 
 ## İzinler
 
@@ -367,11 +366,11 @@ Manifest aşağıdaki temel Chrome izinlerini kullanır:
 |---|---|
 | `storage` | Ayarları, anahtarları, şablonları ve geçmişi yerel olarak saklamak |
 | `tabs` / `activeTab` | Açık eBay konuşmasını ve araştırma sekmelerini yönetmek |
-| `scripting` | Easync ve Amazon ürün sayfalarından gerekli bilgileri okumak |
+| `scripting` | Amazon ürün sayfalarından gerekli bilgileri okumak |
 | `contextMenus` | Seçili eBay metni için SellerMind işlemi sunmak |
 | `notifications` | Uzantı bildirimleri için altyapı |
 
-Host izinleri eBay, Amazon, Easync, OpenRouter ve Anthropic API alan adlarıyla sınırlıdır; ayrıntılar `manifest.json` dosyasındadır.
+Host izinleri eBay, Amazon, OpenRouter ve Anthropic API alan adlarıyla sınırlıdır; ayrıntılar `manifest.json` dosyasındadır.
 
 ## Teknik yapı
 
@@ -408,9 +407,9 @@ Bu kontroller Chrome üzerinde yapılması gereken canlı eBay/Easync testlerini
 
 ## Bilinen kısıtlar
 
-- eBay, Easync veya Amazon HTML yapısı değişirse DOM seçicilerinin güncellenmesi gerekebilir.
-- Amazon veya Easync giriş/robot doğrulama ekranları araştırmayı engelleyebilir.
-- Easync eşleşmesi için item ID'nin ilgili ilanda bulunması gerekir.
+- eBay veya Amazon HTML yapısı değişirse DOM seçicilerinin güncellenmesi gerekebilir.
+- Amazon giriş/robot doğrulama ekranları ürün sayfası kazımayı engelleyebilir.
+- CSV eşlemesi için eBay item ID'sinin yüklü listede bulunması gerekir; yoksa Amazon başlık aramasına düşülür.
 - Amazon başlık araması yanlış varyantı eşleştirebilir; bağlantıyı satıcı doğrulamalıdır.
 - Serbest metinde `ASSISTANT`/`DRAFT` seçimini model yapar; açık taslak işlemleri kod seviyesinde zorlanır.
 - Sağlayıcı model kimlikleri veya parametre desteği zamanla değişebilir.

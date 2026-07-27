@@ -154,11 +154,16 @@
     </div>
 
     <div class="section">
-      <div class="section-title">Ürün Araştırma</div>
+      <div class="section-title">Ürün Araştırma (CSV)</div>
       <div class="field">
-        <label>🔗 Easync Store ID <span style="font-weight:400;color:var(--tx3);">(opsiyonel)</span></label>
-        <input type="text" id="easyncStoreId" placeholder="örn: akmLbbhz3Q5qTo4XY">
-        <div class="hint">Yoksa Amazon araması otomatik yapılır</div>
+        <label>📄 Ürün Listesi CSV'si</label>
+        <div class="btn-row" style="margin-top:0;">
+          <button class="btn btn-secondary" id="loadCsvBtn">📄 CSV Yükle</button>
+          <button class="btn btn-secondary" id="clearCsvBtn">🗑️ Temizle</button>
+        </div>
+        <input type="file" id="productCsv" accept=".csv" style="display:none;">
+        <div class="hint" id="productMapInfo" style="margin-top:8px;">Henüz ürün listesi yüklenmedi.</div>
+        <div class="hint">Easync/dropship panelinden dışa aktardığın CSV. eBay ilan no'sunu (Target Product Id) Amazon ASIN'ine (Source Product Id) eşler; Ürün Araştır bu eşlemeyi kullanır.</div>
       </div>
     </div>
 

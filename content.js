@@ -55,7 +55,7 @@ function injectWidget() {
     </div>
     <div id="sm-widget-actions">
       <button class="sm-widget-action" id="sm-btn-templates" title="Hazır şablonlardan birini eBay mesaj kutusuna ekle">📋 Şablonlar</button>
-      <button class="sm-widget-action" id="sm-btn-research" title="Açık mesajın ürününü Easync/Amazon üzerinden araştır">🔍 Ürün Araştır</button>
+      <button class="sm-widget-action" id="sm-btn-research" title="Açık mesajın ürününü yüklü CSV listesi / Amazon üzerinden araştır">🔍 Ürün Araştır</button>
       <button class="sm-widget-action" id="sm-btn-alexa" title="Müşterinin sorusunu Alexa'ya sorulacak bağımsız soruya çevir">🔊 Alexa'ya Sor</button>
     </div>
     <div id="sm-messages"></div>
@@ -997,7 +997,9 @@ function handleRufusResult(data) {
     const container = document.getElementById("sm-messages");
     const linkDiv = document.createElement("div");
     linkDiv.className = "sm-msg sm-sys";
-    const srcLabel = data.source === "easync" ? "Easync mağaza eşleşmesi" : "Amazon araması";
+    const srcLabel = data.source === "csv" ? "Ürün listesi eşleşmesi"
+      : data.source === "easync" ? "Easync mağaza eşleşmesi"
+      : "Amazon araması";
     const info = document.createElement("div");
     info.textContent = `🛒 Eşleşen Amazon ürünü (${srcLabel}) · ASIN: ${data.asin}`;
     const a = document.createElement("a");
